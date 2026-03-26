@@ -32,6 +32,16 @@ public class PlayerInteract : MonoBehaviour
                     Destroy(hit.collider.gameObject);
                 }
             }
+
+            // NOUVEAU : SI ON VISE UNE PORTE ET QU'ON APPUIE SUR E
+            if (hit.collider.CompareTag("Door") && Input.GetKeyDown(KeyCode.E))
+            {
+                DoorController porteVisee = hit.collider.GetComponent<DoorController>();
+                if (porteVisee != null)
+                {
+                    porteVisee.EssayerOuvrir();
+                }
+            }
         }
     }
 }
