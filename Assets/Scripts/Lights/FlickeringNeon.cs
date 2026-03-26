@@ -8,15 +8,25 @@ public class FlickeringNeon : MonoBehaviour
     public Renderer cylindreNeon;
     public AudioSource audioNeon;
 
-    // Le temps minimum et maximum avant de changer d'état (allumé ou éteint)
+    // Temps de clignotement (On/Off) 100% aléatoire
     private float tempsMin = 0.05f;
     private float tempsMax = 1.0f; 
 
     private Material materialNeon;
     private Color couleurEmissionInitiale;
+    
+    // Variables pour le tremblement d'intensité
+    private float intensiteInitiale;
+    private bool estAllume = true; 
 
     void Start()
     {
+        // On mémorise la puissance d'origine réglée dans l'Inspector
+        if (lumiereNeon != null) 
+        {
+            intensiteInitiale = lumiereNeon.intensity;
+        }
+
         if (cylindreNeon != null)
         {
             materialNeon = cylindreNeon.material;
@@ -26,20 +36,34 @@ public class FlickeringNeon : MonoBehaviour
         StartCoroutine(ClignotementAleatoire());
     }
 
+    void Update()
+    {
+        // --- LE TREMBLEMENT MASSIF ---
+        // Si le néon est "allumé", on fait chuter son intensité de façon brutale.
+        if (estAllume && lumiereNeon != null)
+        {
+            // MODIFICATION ICI : On choisit une valeur aléatoire entre 10% (0.1f) 
+            // et 100% de l'intensité de base. La chute est énorme !
+            lumiereNeon.intensity = Random.Range(intensiteInitiale * 0.1f, intensiteInitiale);
+        }
+    }
+
     IEnumerator ClignotementAleatoire()
     {
         while (true)
         {
-            // 1. On attend un temps 100% aléatoire
+            // 1. Attente aléatoire avant de changer d'état
             yield return new WaitForSeconds(Random.Range(tempsMin, tempsMax));
 
-            // 2. On inverse l'état (si c'était allumé, on éteint, et inversement)
-            bool estAllume = !lumiereNeon.enabled;
+            // 2. Inversion de l'état
+            estAllume = !estAllume;
             lumiereNeon.enabled = estAllume;
 
-            // 3. On applique la couleur et le son
+            // 3. Application du visuel (Matériau) et du son
             if (estAllume)
             {
+                // On s'assure que la lumière repart sur une bonne base d'intensité
+                lumiereNeon.intensity = intensiteInitiale; 
                 if (materialNeon != null) materialNeon.SetColor("_EmissionColor", couleurEmissionInitiale);
                 if (audioNeon != null) audioNeon.mute = false;
             }
