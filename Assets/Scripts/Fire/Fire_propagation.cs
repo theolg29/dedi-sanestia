@@ -57,6 +57,25 @@ public class Fire_propagation : MonoBehaviour
     // --- SYSTEME DE GRILLE GLOBALE ---
     private static HashSet<Vector3Int> burningCells = new HashSet<Vector3Int>();
 
+    /// <summary>
+    /// Retourne la distance au feu le plus proche depuis une position donnée.
+    /// Utilisé par FireProximityVision pour l'effet visuel de proximité.
+    /// </summary>
+    public static float GetClosestFireDistance(Vector3 position, float cellSize = 1f)
+    {
+        float closestDist = float.MaxValue;
+        foreach (Vector3Int cell in burningCells)
+        {
+            Vector3 fireWorldPos = new Vector3(cell.x * cellSize, cell.y * cellSize, cell.z * cellSize);
+            float dist = Vector3.Distance(position, fireWorldPos);
+            if (dist < closestDist) closestDist = dist;
+        }
+        return closestDist;
+    }
+
+    /// <summary>Nombre total de cellules en feu dans la scène.</summary>
+    public static int ActiveFireCount => burningCells.Count;
+
     void Start()
     {
         currentScale = minScale;
