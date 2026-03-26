@@ -2,56 +2,52 @@ using UnityEngine;
 
 public class DoorController : MonoBehaviour
 {
-    [Header("Paramètres de la Porte")]
-    public string objetRequis = "Badge"; // Le nom exact de l'objet nécessaire
-    public float angleOuverture = 90f;   // Angle de la porte ouverte
-    public float vitesseOuverture = 2f;  // Vitesse de l'animation
+    [Header("Door Settings")]
+    public string requiredItem = "Badge"; // Le nom exact de l'objet nécessaire
+    public float openAngle = 90f;         // Angle de la porte ouverte
+    public float openSpeed = 2f;          // Vitesse de l'animation
 
-    private bool estOuverte = false;
-    private Quaternion rotationFermee;
-    private Quaternion rotationOuverte;
+    private bool isOpen = false;
+    private Quaternion closedRotation;
+    private Quaternion openRotation;
     
-    private InventoryManager inventaire;
+    private InventoryManager inventory;
 
     void Start()
     {
-        // On mémorise la position de départ de la porte
-        rotationFermee = transform.rotation;
-        
-        // On calcule sa position une fois ouverte (rotation sur l'axe Y)
-        rotationOuverte = Quaternion.Euler(transform.eulerAngles + new Vector3(0, angleOuverture, 0));
-        
-        // La porte cherche toute seule le script InventoryManager dans la scène !
-        inventaire = FindFirstObjectByType<InventoryManager>();
+        closedRotation = transform.rotation;
+        openRotation = Quaternion.Euler(transform.eulerAngles + new Vector3(0, openAngle, 0));
+        inventory = FindFirstObjectByType<InventoryManager>();
     }
 
     void Update()
     {
-        // Si elle est déverrouillée, on l'anime de façon fluide
-        if (estOuverte)
+        if (isOpen)
         {
-            transform.rotation = Quaternion.Lerp(transform.rotation, rotationOuverte, Time.deltaTime * vitesseOuverture);
+            transform.rotation = Quaternion.Lerp(transform.rotation, openRotation, Time.deltaTime * openSpeed);
         }
     }
 
-    // Fonction appelée quand le joueur clique (E) sur la porte
-    public void EssayerOuvrir()
+    public void TryOpen()
     {
-        if (estOuverte) return; // Si déjà ouverte, on ne fait plus rien
+        if (isOpen) return;
 
-        if (inventaire != null)
+        if (inventory != null)
         {
-            // On vérifie ce que le joueur tient en main
-            string objetEnMain = inventaire.ObtenirObjetActif();
+            // On vérifie ce que le joueur tient en main dans sa Hotbar
+            string heldItem = inventory.GetActiveItem();
 
-            if (objetEnMain == objetRequis)
+            if (heldItem == requiredItem)
             {
-                Debug.Log("Accès Autorisé !");
-                estOuverte = true; // Déclenche l'animation dans l'Update
+                Debug.Log("Access Granted!");
+                isOpen = true; 
+                
+                // Note : On garde l'objet en main. Si tu veux que le badge 
+                // soit détruit après utilisation, on rajoutera une petite ligne plus tard !
             }
             else
             {
-                Debug.Log("Accès Refusé. Il faut : " + objetRequis + ". Vous tenez : " + objetEnMain);
+                Debug.Log("Access Denied. Required: " + requiredItem + ". You are holding: " + heldItem);
             }
         }
     }
