@@ -1,174 +1,209 @@
 using UnityEngine;
 using TMPro;
 using System.Collections.Generic;
+using UnityEngine.UI; // Obligatoire pour modifier des images (Icons)
+
+// Petite structure pour lier un Nom d'objet à son Image
+[System.Serializable]
+public struct ItemData
+{
+    public string itemName;
+    public Sprite itemIcon;
+}
 
 public class InventoryManager : MonoBehaviour
 {
-    [Header("UI (Menu I)")]
-    public GameObject menuInventaire;
-    public TextMeshProUGUI texteListeObjets;
+    [Header("Hotbar UI (Minecraft Style)")]
+    public Image[] slotBackgrounds; // Glisser Slot_1, Slot_2...
+    public Image[] slotIcons;       // Glisser leurs enfants Icone_Objet...
+    public Color selectedColor = Color.white; // Couleur de la case sélectionnée
+    public Color normalColor = new Color(0.5f, 0.5f, 0.5f, 0.8f); // Couleur de la case non sélectionnée
+    
+    [Space(10)] // Fait un petit espace visuel dans l'Inspector
+    public List<ItemData> itemDatabase; // La base de données de tes icônes
 
-    [Header("Objet en main (Molette)")]
-    public Transform mainDuJoueur;
+    [Header("Old UI (Menu I)")]
+    public GameObject inventoryMenu;
+    public TextMeshProUGUI itemListText;
 
-    [Header("Paramètres de Lancer")]
-    public float forceDeLancer = 10f;
+    [Header("Player Hand")]
+    public Transform playerHand;
 
-    private List<string> objetsPossedes = new List<string>();
-    private int indexObjetActif = -1;
-    private bool inventaireOuvert = false;
+    [Header("Throw Settings")]
+    public float throwForce = 10f;
+
+    private List<string> inventoryItems = new List<string>();
+    private int activeItemIndex = -1;
+    private bool isInventoryOpen = false;
 
     void Start()
     {
-        menuInventaire.SetActive(false);
-        foreach (Transform enfant in mainDuJoueur)
+        inventoryMenu.SetActive(false);
+        foreach (Transform child in playerHand)
         {
-            enfant.gameObject.SetActive(false);
+            child.gameObject.SetActive(false);
         }
+        UpdateHotbarUI(); // Met à jour l'interface au lancement
     }
 
     void Update()
     {
-        // 1. GESTION DU MENU (Touche I ou Échap)
+        // 1. MENU
         if (Input.GetKeyDown(KeyCode.I))
         {
-            inventaireOuvert = !inventaireOuvert;
-            menuInventaire.SetActive(inventaireOuvert);
+            isInventoryOpen = !isInventoryOpen;
+            inventoryMenu.SetActive(isInventoryOpen);
         }
-        else if (Input.GetKeyDown(KeyCode.Escape) && inventaireOuvert)
+        else if (Input.GetKeyDown(KeyCode.Escape) && isInventoryOpen)
         {
-            inventaireOuvert = false;
-            menuInventaire.SetActive(false);
+            isInventoryOpen = false;
+            inventoryMenu.SetActive(false);
         }
 
-        // Si on a au moins 1 objet en main...
-        if (objetsPossedes.Count > 0)
+        // 2 & 3. MOLETTE & LANCER
+        if (inventoryItems.Count > 0)
         {
-            // 2. GESTION DE LA MOLETTE
-            float molette = Input.mouseScrollDelta.y;
-            if (molette > 0f) ChangerObjet(1);
-            else if (molette < 0f) ChangerObjet(-1);
+            float scroll = Input.mouseScrollDelta.y;
+            if (scroll > 0f) ChangeItem(1);
+            else if (scroll < 0f) ChangeItem(-1);
 
-            // 3. JETER OU LANCER L'OBJET
-            if (Input.GetKeyDown(KeyCode.G))
-            {
-                JeterObjet(false); // Lâcher doucement avec G
-            }
-            // LA MODIFICATION EST ICI : GetMouseButtonUp au lieu de Down
-            else if (Input.GetMouseButtonUp(1)) 
-            {
-                JeterObjet(true);  // Lancer quand on RELÂCHE le clic droit
-            }
+            if (Input.GetKeyDown(KeyCode.G)) DropItem(false);
+            else if (Input.GetMouseButtonUp(1)) DropItem(true);
         }
     }
 
-    public void AjouterObjet(string nomObjet)
+    // ANCIENNEMENT AjouterObjet
+    public void AddItem(string itemName) 
     {
-        if (!objetsPossedes.Contains(nomObjet))
+        // On vérifie qu'on a encore de la place dans la Hotbar !
+        if (!inventoryItems.Contains(itemName) && inventoryItems.Count < slotIcons.Length)
         {
-            objetsPossedes.Add(nomObjet);
-            MettreAJourTexte();
+            inventoryItems.Add(itemName);
+            UpdateText();
             
-            if (objetsPossedes.Count == 1)
+            if (inventoryItems.Count == 1)
             {
-                indexObjetActif = 0;
-                EquiperObjetActif();
-            }
-        }
-    }
-
-    void JeterObjet(bool estUnLancer)
-    {
-        string nomAEquiper = objetsPossedes[indexObjetActif];
-
-        foreach (Transform enfant in mainDuJoueur)
-        {
-            if (enfant.name == nomAEquiper)
-            {
-                // On crée une copie physique de l'objet
-                GameObject objetJete = Instantiate(enfant.gameObject, mainDuJoueur.position + mainDuJoueur.forward * 1.5f, mainDuJoueur.rotation);
-                
-                objetJete.name = nomAEquiper; 
-                objetJete.SetActive(true);    
-                objetJete.tag = "Item";       
-                
-                objetJete.transform.localScale = Vector3.one; 
-                
-                // On prépare la physique
-                if (objetJete.GetComponent<Collider>() == null) objetJete.AddComponent<BoxCollider>();
-                
-                Rigidbody rb = objetJete.GetComponent<Rigidbody>();
-                if (rb == null) rb = objetJete.AddComponent<Rigidbody>();
-
-                if (estUnLancer)
-                {
-                    // Propulse l'objet en avant
-                    rb.AddForce(mainDuJoueur.forward * forceDeLancer, ForceMode.Impulse);
-                }
-
-                enfant.gameObject.SetActive(false);
-            }
-        }
-
-        objetsPossedes.RemoveAt(indexObjetActif);
-        MettreAJourTexte();
-
-        if (objetsPossedes.Count == 0)
-        {
-            indexObjetActif = -1;
-        }
-        else
-        {
-            if (indexObjetActif >= objetsPossedes.Count) indexObjetActif = objetsPossedes.Count - 1;
-            EquiperObjetActif();
-        }
-    }
-
-    void MettreAJourTexte()
-    {
-        texteListeObjets.text = "INVENTAIRE :\n\n";
-        foreach (string objet in objetsPossedes)
-        {
-            texteListeObjets.text += "- " + objet + "\n";
-        }
-    }
-
-    void ChangerObjet(int direction)
-    {
-        indexObjetActif += direction;
-        
-        if (indexObjetActif >= objetsPossedes.Count) indexObjetActif = 0;
-        else if (indexObjetActif < 0) indexObjetActif = objetsPossedes.Count - 1;
-
-        EquiperObjetActif();
-    }
-
-    void EquiperObjetActif()
-    {
-        if (indexObjetActif < 0 || indexObjetActif >= objetsPossedes.Count) return;
-
-        string nomAEquiper = objetsPossedes[indexObjetActif];
-
-        foreach (Transform enfant in mainDuJoueur)
-        {
-            if (enfant.name == nomAEquiper)
-            {
-                enfant.gameObject.SetActive(true);
+                activeItemIndex = 0;
+                EquipActiveItem();
             }
             else
             {
-                enfant.gameObject.SetActive(false);
+                UpdateHotbarUI();
+            }
+        }
+        else if (inventoryItems.Count >= slotIcons.Length)
+        {
+            Debug.Log("L'inventaire est plein !");
+        }
+    }
+
+    // ANCIENNEMENT JeterObjet
+    void DropItem(bool isThrow) 
+    {
+        string itemToEquip = inventoryItems[activeItemIndex];
+
+        foreach (Transform child in playerHand)
+        {
+            if (child.name == itemToEquip)
+            {
+                GameObject droppedItem = Instantiate(child.gameObject, playerHand.position + playerHand.forward * 1.5f, playerHand.rotation);
+                
+                droppedItem.name = itemToEquip; 
+                droppedItem.SetActive(true);    
+                droppedItem.tag = "Item";       
+                droppedItem.transform.localScale = Vector3.one; 
+                
+                if (droppedItem.GetComponent<Collider>() == null) droppedItem.AddComponent<BoxCollider>();
+                
+                Rigidbody rb = droppedItem.GetComponent<Rigidbody>();
+                if (rb == null) rb = droppedItem.AddComponent<Rigidbody>();
+
+                if (isThrow) rb.AddForce(playerHand.forward * throwForce, ForceMode.Impulse);
+
+                child.gameObject.SetActive(false);
+            }
+        }
+
+        inventoryItems.RemoveAt(activeItemIndex);
+        UpdateText();
+
+        if (inventoryItems.Count == 0) activeItemIndex = -1;
+        else
+        {
+            if (activeItemIndex >= inventoryItems.Count) activeItemIndex = inventoryItems.Count - 1;
+            EquipActiveItem();
+        }
+
+        UpdateHotbarUI();
+    }
+
+    void UpdateText()
+    {
+        itemListText.text = "INVENTORY :\n\n";
+        foreach (string item in inventoryItems) itemListText.text += "- " + item + "\n";
+    }
+
+    void ChangeItem(int direction)
+    {
+        activeItemIndex += direction;
+        if (activeItemIndex >= inventoryItems.Count) activeItemIndex = 0;
+        else if (activeItemIndex < 0) activeItemIndex = inventoryItems.Count - 1;
+        EquipActiveItem();
+    }
+
+    void EquipActiveItem()
+    {
+        if (activeItemIndex < 0 || activeItemIndex >= inventoryItems.Count) return;
+
+        string itemToEquip = inventoryItems[activeItemIndex];
+
+        foreach (Transform child in playerHand)
+        {
+            child.gameObject.SetActive(child.name == itemToEquip);
+        }
+
+        UpdateHotbarUI(); // Met à jour la surbrillance de la case
+    }
+
+    // ANCIENNEMENT ObtenirObjetActif
+    public string GetActiveItem() 
+    {
+        if (activeItemIndex >= 0 && activeItemIndex < inventoryItems.Count) return inventoryItems[activeItemIndex];
+        return ""; 
+    }
+
+    // --- LA MAGIE DE LA HOTBAR ---
+    void UpdateHotbarUI()
+    {
+        for (int i = 0; i < slotIcons.Length; i++)
+        {
+            // 1. Gérer l'affichage de l'icône
+            if (i < inventoryItems.Count)
+            {
+                slotIcons[i].sprite = GetIconFor(inventoryItems[i]);
+                slotIcons[i].enabled = (slotIcons[i].sprite != null); // Cache l'icône s'il n'y a pas d'image
+            }
+            else
+            {
+                slotIcons[i].sprite = null;
+                slotIcons[i].enabled = false;
+            }
+
+            // 2. Gérer la surbrillance du fond
+            if (i < slotBackgrounds.Length)
+            {
+                if (i == activeItemIndex) slotBackgrounds[i].color = selectedColor;
+                else slotBackgrounds[i].color = normalColor;
             }
         }
     }
 
-    // Petite fonction bonus pour que d'autres scripts puissent vérifier ce qu'on a en main
-    public string ObtenirObjetActif()
+    Sprite GetIconFor(string itemName)
     {
-        if (indexObjetActif >= 0 && indexObjetActif < objetsPossedes.Count)
+        foreach (ItemData data in itemDatabase)
         {
-            return objetsPossedes[indexObjetActif];
+            if (data.itemName == itemName) return data.itemIcon;
         }
-        return ""; // Rien en main
+        return null;
     }
 }
