@@ -24,10 +24,11 @@ public class HelicopterController : MonoBehaviour
         get { return _engineForce; }
         set
         {
-            MainRotorController.RotarSpeed = value * 80;
-            SubRotorController.RotarSpeed = value * 40;
-            HelicopterSound.pitch = Mathf.Clamp(value / 40, 0, 1.2f);
-            if (UIGameController.runtime.EngineForceView != null)
+            if (MainRotorController != null) MainRotorController.RotarSpeed = value * 80;
+            if (SubRotorController != null) SubRotorController.RotarSpeed = value * 40;
+            if (HelicopterSound != null) HelicopterSound.pitch = Mathf.Clamp(value / 40, 0, 1.2f);
+            
+            if (UIGameController.runtime != null && UIGameController.runtime.EngineForceView != null)
                 UIGameController.runtime.EngineForceView.text = string.Format("Engine value [ {0} ] ", (int)value);
 
             _engineForce = value;
@@ -42,6 +43,11 @@ public class HelicopterController : MonoBehaviour
     // Use this for initialization
 	void Start ()
 	{
+        if (HelicopterModel == null)
+        {
+            HelicopterModel = GetComponent<Rigidbody>();
+        }
+
         if (ControlPanel == null)
         {
             ControlPanel = FindObjectOfType<ControlPanel>();

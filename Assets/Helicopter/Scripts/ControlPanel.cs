@@ -62,12 +62,12 @@ public class ControlPanel : MonoBehaviour {
         // for test
         if (Input.GetKey(MusicOffOn))
         {
-           if (  MusicSound.volume == 1) return;
-/*            if (MusicSound.isPlaying)
-                MusicSound.Stop();
-            else*/
-                MusicSound.volume = 1;
-                MusicSound.Play();
+           if (MusicSound != null)
+           {
+               if (MusicSound.volume == 1) return;
+               MusicSound.volume = 1;
+               if (!MusicSound.isPlaying) MusicSound.Play();
+           }
         }
       
 	}
