@@ -1,26 +1,16 @@
 using UnityEngine;
-using TMPro;
+using TMPro; // Obligatoire pour utiliser TextMeshPro
 using System.Collections.Generic;
-using UnityEngine.UI; // Obligatoire pour modifier des images (Icons)
-
-// Petite structure pour lier un Nom d'objet à son Image
-[System.Serializable]
-public struct ItemData
-{
-    public string itemName;
-    public Sprite itemIcon;
-}
+using UnityEngine.UI;
 
 public class InventoryManager : MonoBehaviour
 {
     [Header("Hotbar UI (Minecraft Style)")]
-    public Image[] slotBackgrounds; // Glisser Slot_1, Slot_2...
-    public Image[] slotIcons;       // Glisser leurs enfants Icone_Objet...
-    public Color selectedColor = Color.white; // Couleur de la case sélectionnée
-    public Color normalColor = new Color(0.5f, 0.5f, 0.5f, 0.8f); // Couleur de la case non sélectionnée
+    public Image[] slotBackgrounds;     // Tes cases (Slot_1, Slot_2...)
+    public TextMeshProUGUI[] slotTexts; // NOUVEAU : Tes Textes (Texte_Objet...)
     
-    [Space(10)] // Fait un petit espace visuel dans l'Inspector
-    public List<ItemData> itemDatabase; // La base de données de tes icônes
+    public Color selectedColor = Color.white; 
+    public Color normalColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
 
     [Header("Old UI (Menu I)")]
     public GameObject inventoryMenu;
@@ -43,12 +33,11 @@ public class InventoryManager : MonoBehaviour
         {
             child.gameObject.SetActive(false);
         }
-        UpdateHotbarUI(); // Met à jour l'interface au lancement
+        UpdateHotbarUI();
     }
 
     void Update()
     {
-        // 1. MENU
         if (Input.GetKeyDown(KeyCode.I))
         {
             isInventoryOpen = !isInventoryOpen;
@@ -60,7 +49,6 @@ public class InventoryManager : MonoBehaviour
             inventoryMenu.SetActive(false);
         }
 
-        // 2 & 3. MOLETTE & LANCER
         if (inventoryItems.Count > 0)
         {
             float scroll = Input.mouseScrollDelta.y;
@@ -72,11 +60,9 @@ public class InventoryManager : MonoBehaviour
         }
     }
 
-    // ANCIENNEMENT AjouterObjet
     public void AddItem(string itemName) 
     {
-        // On vérifie qu'on a encore de la place dans la Hotbar !
-        if (!inventoryItems.Contains(itemName) && inventoryItems.Count < slotIcons.Length)
+        if (!inventoryItems.Contains(itemName) && inventoryItems.Count < slotTexts.Length)
         {
             inventoryItems.Add(itemName);
             UpdateText();
@@ -91,13 +77,8 @@ public class InventoryManager : MonoBehaviour
                 UpdateHotbarUI();
             }
         }
-        else if (inventoryItems.Count >= slotIcons.Length)
-        {
-            Debug.Log("L'inventaire est plein !");
-        }
     }
 
-    // ANCIENNEMENT JeterObjet
     void DropItem(bool isThrow) 
     {
         string itemToEquip = inventoryItems[activeItemIndex];
@@ -162,31 +143,27 @@ public class InventoryManager : MonoBehaviour
             child.gameObject.SetActive(child.name == itemToEquip);
         }
 
-        UpdateHotbarUI(); // Met à jour la surbrillance de la case
+        UpdateHotbarUI(); 
     }
 
-    // ANCIENNEMENT ObtenirObjetActif
     public string GetActiveItem() 
     {
         if (activeItemIndex >= 0 && activeItemIndex < inventoryItems.Count) return inventoryItems[activeItemIndex];
         return ""; 
     }
 
-    // --- LA MAGIE DE LA HOTBAR ---
     void UpdateHotbarUI()
     {
-        for (int i = 0; i < slotIcons.Length; i++)
+        for (int i = 0; i < slotTexts.Length; i++)
         {
-            // 1. Gérer l'affichage de l'icône
+            // 1. Affiche le NOM de l'objet au lieu d'une image
             if (i < inventoryItems.Count)
             {
-                slotIcons[i].sprite = GetIconFor(inventoryItems[i]);
-                slotIcons[i].enabled = (slotIcons[i].sprite != null); // Cache l'icône s'il n'y a pas d'image
+                slotTexts[i].text = inventoryItems[i]; // Écrit "Badge"
             }
             else
             {
-                slotIcons[i].sprite = null;
-                slotIcons[i].enabled = false;
+                slotTexts[i].text = ""; // Case vide
             }
 
             // 2. Gérer la surbrillance du fond
@@ -196,14 +173,5 @@ public class InventoryManager : MonoBehaviour
                 else slotBackgrounds[i].color = normalColor;
             }
         }
-    }
-
-    Sprite GetIconFor(string itemName)
-    {
-        foreach (ItemData data in itemDatabase)
-        {
-            if (data.itemName == itemName) return data.itemIcon;
-        }
-        return null;
     }
 }
