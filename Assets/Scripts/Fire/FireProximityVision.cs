@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using System.Collections;
 
 /// <summary>
 /// Effet visuel de proximité au feu.
@@ -29,10 +30,19 @@ public class FireProximityVision : MonoBehaviour
     public bool enableBlur = true;
     public float blurNearStart = 0.1f;
     public float blurNearEnd = 3f;
+    [Tooltip("Rayon max du flou gaussien (plus = plus flou)")]
+    public float blurMaxRadius = 1f;
 
     [Header("Vignette")]
     public float maxVignetteIntensity = 0.5f;
     public Color vignetteColor = new Color(0.8f, 0.3f, 0f, 1f);
+
+    [Header("Flou de Mort (post-mortem)")]
+    [Tooltip("Durée de la montée du flou après la mort (secondes)")]
+    public float deathBlurDuration = 2.5f;
+
+    [Tooltip("Intensité max du flou de mort (0-1)")]
+    public float deathBlurMaxIntensity = 1f;
 
     [Header("Transition")]
     public float smoothSpeed = 3f;
@@ -136,6 +146,7 @@ public class FireProximityVision : MonoBehaviour
             depthOfField.mode.Override(DepthOfFieldMode.Gaussian);
             depthOfField.gaussianStart.Override(100f);
             depthOfField.gaussianEnd.Override(200f);
+            depthOfField.gaussianMaxRadius.Override(0f); // Commence sans flou
         }
 
         vignette = profile.Add<Vignette>(false);
@@ -202,6 +213,7 @@ public class FireProximityVision : MonoBehaviour
                 float gaussEnd = Mathf.Lerp(200f, blurNearEnd, intensity);
                 depthOfField.gaussianStart.Override(gaussStart);
                 depthOfField.gaussianEnd.Override(gaussEnd);
+                depthOfField.gaussianMaxRadius.Override(Mathf.Lerp(0f, blurMaxRadius, intensity));
             }
 
             if (vignette != null)
@@ -220,6 +232,79 @@ public class FireProximityVision : MonoBehaviour
     {
         isLocked = true;
         Debug.Log("[FireProximityVision] 🔒 Effet figé à intensité : " + currentIntensity.ToString("F2"));
+    }
+
+    /// <summary>
+    /// Lance le flou progressif post-mortem.
+    /// Le flou augmente graduellement de l'intensité actuelle jusqu'au maximum.
+    /// L'overlay orange reste figé, seul le flou change.
+    /// </summary>
+    public void StartDeathBlur()
+    {
+        isLocked = true; // Empêcher l'Update de modifier quoi que ce soit
+
+        // Créer le DepthOfField s'il n'existait pas (enableBlur décoché)
+        if (depthOfField == null && profile != null)
+        {
+            depthOfField = profile.Add<DepthOfField>(false);
+            depthOfField.active = true;
+            depthOfField.mode.Override(DepthOfFieldMode.Gaussian);
+            depthOfField.gaussianStart.Override(100f);
+            depthOfField.gaussianEnd.Override(200f);
+            depthOfField.gaussianMaxRadius.Override(0f);
+            Debug.Log("[FireProximityVision] 🌫️ DepthOfField créé pour le flou de mort");
+        }
+
+        StartCoroutine(DeathBlurCoroutine());
+    }
+
+    private IEnumerator DeathBlurCoroutine()
+    {
+        Debug.Log("[FireProximityVision] 🌫️ Début du flou de mort progressif");
+
+        float startIntensity = currentIntensity;
+        float elapsed = 0f;
+
+        while (elapsed < deathBlurDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / deathBlurDuration;
+
+            // Courbe SmoothStep pour une progression naturelle
+            float eased = t * t * (3f - 2f * t);
+
+            float blurIntensity = Mathf.Lerp(startIntensity, deathBlurMaxIntensity, eased);
+
+            // Appliquer UNIQUEMENT le flou (pas l'overlay orange)
+            ApplyDeathBlur(blurIntensity);
+
+            yield return null;
+        }
+
+        // S'assurer qu'on atteint le maximum
+        ApplyDeathBlur(deathBlurMaxIntensity);
+        Debug.Log("[FireProximityVision] 🌫️ Flou de mort au maximum");
+    }
+
+    private void ApplyDeathBlur(float intensity)
+    {
+        if (volume == null) return;
+
+        volume.weight = 1f;
+
+        if (depthOfField != null)
+        {
+            // Forcer le flou sur TOUT (near = très proche, end = très loin)
+            depthOfField.gaussianStart.Override(Mathf.Lerp(100f, 0f, intensity));
+            depthOfField.gaussianEnd.Override(Mathf.Lerp(200f, 0.01f, intensity));
+            // gaussianMaxRadius contrôle la FORCE réelle du flou
+            depthOfField.gaussianMaxRadius.Override(Mathf.Lerp(0f, 1.5f, intensity));
+        }
+
+        if (vignette != null)
+        {
+            vignette.intensity.Override(Mathf.Lerp(0f, maxVignetteIntensity, intensity));
+        }
     }
 
     void OnDestroy()
