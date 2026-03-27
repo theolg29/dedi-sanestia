@@ -4,7 +4,6 @@ using System.Collections.Generic;
 public class Fire_propagation : MonoBehaviour
 {
     [Header("Settings")]
-    public float propagationInterval = 3f; // Temps entre chaque propagation
     public float cellSize = 1f; // Taille d'une case (1x1x1)
 
     [Header("Visual Evolution")]
@@ -12,24 +11,52 @@ public class Fire_propagation : MonoBehaviour
     public float maxScale = 1f;
     public float durationToMax = 3f; // Temps pour atteindre sa taille max
 
+    [Header("Propagation Réaliste")]
+    [Tooltip("Délai fixe entre chaque tentative de propagation (plus gérable)")]
+    public float propagationInterval = 8f; // Plus lent, fixe
+    [Tooltip("Probabilité (0-1) que chaque direction propage le feu")]
+    public float propagationChance = 0.12f; // Plus faible
+    [Tooltip("Nombre max de propagations simultanées par tick")]
+    public int maxSimultaneousSpreads = 1; // 1 seul pour éviter l'exponentielle
+
     [Header("FX Globaux (Lumière)")]
-    public float flamesForMaxEffects = 500f; // Nombre de feux pour atteindre le max global
+    public float flamesForMaxEffects = 500f;
     public float maxLightRange = 50f;
     public float maxLightIntensity = 10f;
 
-    [Header("FX_Smoke (Traces noires / Suie au sol)")]
-    public float flamesForMaxSoot = 500f; // La suie met LONGTEMPS à atteindre son max
-    public float maxSootParticleSize = 0.8f; // Taille max très petite (c'est de la suie, pas un nuage)
-    public float maxSootEmissionArea = 5f; // Reste collé au sol, petite zone
-    public float maxSootParticlesRate = 10f; // Très peu de particules (traces subtiles)
+    [Header("Light Flicker (Scintillement)")]
+    [Tooltip("Vitesse du scintillement de la lumière")]
+    public float lightFlickerSpeed = 8f;
+    [Tooltip("Amplitude du scintillement (0.15 = ±15%)")]
+    public float lightFlickerAmount = 0.15f;
+    [Tooltip("Couleur de la lumière au début (peu de feu)")]
+    public Color lightColorStart = new Color(1f, 0.6f, 0.1f, 1f); // Orange doux
+    [Tooltip("Couleur de la lumière au max (beaucoup de feu)")]
+    public Color lightColorEnd = new Color(1f, 0.25f, 0f, 1f); // Orange/rouge intense
 
-    [Header("Smoke01 (Fumée atmosphérique qui se dissipe)")]
-    public float flamesForMaxSmoke01 = 500f; // Même échelle que le feu
-    public float minSmoke01Size = 3f; // Visible immédiatement, même avec 1 seul feu
-    public float maxSmoke01Size = 200f; // Taille finale énorme
-    public float maxSmoke01EmissionArea = 40f; // Grande zone d'étalement dans l'air
-    public float minSmoke01ParticlesRate = 2f; // Quelques wisps de fumée au début
-    public float maxSmoke01ParticlesRate = 60f; // Beaucoup de fumée à la fin
+    [Header("FX_Smoke (Fumée noire / Suie)")]
+    public float flamesForMaxSoot = 200f; // S'emballe plus vite
+    public float minSootParticleSize = 0.02f;
+    public float maxSootParticleSize = 3f;
+    public float minSootEmissionArea = 0.2f;
+    public float maxSootEmissionArea = 20f;
+    public float minSootParticlesRate = 0.5f;
+    public float maxSootParticlesRate = 50f;
+
+    [Header("Smoke01 (Fumée atmosphérique lointaine)")]
+    public float flamesForMaxSmoke01 = 150f; // Atteint sa taille max TRÈS vite
+    [Tooltip("Nombre de flammes pour déclencher la montée massive de fumée")]
+    public float flamesForSmoke01Trigger = 5f;
+    [Tooltip("Taille de départ (petit wisp visible dans l'air)")]
+    public float minSmoke01Size = 1f;
+    [Tooltip("Taille finale très large (atmosphérique)")]
+    public float maxSmoke01Size = 600f; // 400->600
+    [Tooltip("Zone d'émission de départ (concentrée)")]
+    public float minSmoke01EmissionArea = 1f;
+    [Tooltip("Zone d'émission finale très large (couvre le bâtiment entier)")]
+    public float maxSmoke01EmissionArea = 250f; // 150->250
+    public float minSmoke01ParticlesRate = 1f;
+    public float maxSmoke01ParticlesRate = 200f; // 120->200
 
     private float currentScale;
     private float timer = 0f;
@@ -136,7 +163,7 @@ public class Fire_propagation : MonoBehaviour
             {
                 var main = sharedSmoke01.main;
                 main.loop = true;
-                sharedSmoke01.Clear(); // Supprime l'énorme particule de démarrage indésirable !
+                sharedSmoke01.Clear();
                 main.stopAction = ParticleSystemStopAction.None;
 
                 initialSmoke01Rate = sharedSmoke01.emission.rateOverTime.constant;
@@ -186,7 +213,9 @@ public class Fire_propagation : MonoBehaviour
             UpdateScale();
         }
 
+        // --- PROPAGATION À VITESSE FIXE (Progressive) ---
         timer += Time.deltaTime;
+
         if (timer >= propagationInterval)
         {
             timer = 0f;
@@ -194,78 +223,123 @@ public class Fire_propagation : MonoBehaviour
 
             if (currentScale >= maxScale && IsCompletelySurrounded())
             {
-                isEvaporated = true; // Empêche OnDestroy d'effacer sa position de la grille
-                Destroy(gameObject); // Optimisation
+                isEvaporated = true;
+                Destroy(gameObject);
             }
         }
 
         // --- MISE À JOUR GLOBALE (FUMÉE & LUMIÈRE) ---
 
         // ============================================
-        // FX_Smoke = SUIE / TRACES NOIRES AU SOL
-        // Croissance TRES lente, TRES linéaire, reste petit et subtil
+        // FX_Smoke = FUMÉE NOIRE / SUIE
+        // Courbe CUBIQUE : quasi invisible longtemps, explose quand beaucoup de flammes
         // ============================================
         if (sharedSmoke != null && initialSmokeRate != -1f)
         {
-            // Ratio linéaire pur, pas de courbe. La suie grossit régulièrement, sans surprise.
             float sootRatio = Mathf.Clamp01((float)burningCells.Count / flamesForMaxSoot);
 
+            // Courbe cubique (pow 3) = reste minuscule longtemps, puis explose
+            float curvedSootRatio = sootRatio * sootRatio * sootRatio;
+
             var main = sharedSmoke.main;
-            main.startSize = Mathf.Lerp(0.05f, maxSootParticleSize, sootRatio);
+            main.startSize = Mathf.Lerp(minSootParticleSize, maxSootParticleSize, curvedSootRatio);
 
             var shape = sharedSmoke.shape;
-            shape.scale = Vector3.Lerp(initialSmokeShapeScale, new Vector3(maxSootEmissionArea, maxSootEmissionArea, maxSootEmissionArea), sootRatio);
+            float area = Mathf.Lerp(minSootEmissionArea, maxSootEmissionArea, curvedSootRatio);
+            shape.scale = new Vector3(area, area, area);
 
             var emission = sharedSmoke.emission;
-            emission.rateOverTime = Mathf.Lerp(initialSmokeRate, maxSootParticlesRate, sootRatio);
+            emission.rateOverTime = Mathf.Lerp(minSootParticlesRate, maxSootParticlesRate, curvedSootRatio);
         }
 
         // ============================================
-        // Smoke01 = FUMÉE ATMOSPHÉRIQUE QUI SE DISSIPE
-        // Visible IMMÉDIATEMENT (sqrt = rapide au début, lent à la fin)
-        // Grossit régulièrement et domine progressivement la scène
+        // Smoke01 = FUMÉE ATMOSPHÉRIQUE LOINTAINE
+        // Deux phases :
+        //   1) Toujours un peu de fumée dans l'air (wisps légers)
+        //   2) Après ~10 flammes : explosion massive en rayon et intensité
         // ============================================
         if (sharedSmoke01 != null && initialSmoke01Rate != -1f)
         {
-            float ratio01 = Mathf.Clamp01((float)burningCells.Count / flamesForMaxSmoke01);
+            int fireCount = burningCells.Count;
+            float ratio01 = Mathf.Clamp01((float)fireCount / flamesForMaxSmoke01);
+
+            // Phase 1 : base légère, toujours visible (petits wisps dans l'air)
+            // Phase 2 : après le trigger (~10 flammes), EXPLOSION IMMÉDIATE (pow 0.3)
+            float triggerRatio = Mathf.Clamp01((float)fireCount / flamesForSmoke01Trigger);
+            float postTrigger = Mathf.Clamp01(((float)fireCount - flamesForSmoke01Trigger) / (flamesForMaxSmoke01 - flamesForSmoke01Trigger));
             
-            // Courbe SQRT (racine carrée) = l'INVERSE du Pow(2).
-            // Avec 1% du feu, on a déjà 10% de l'effet. Visible dès le départ !
-            // Puis la croissance ralentit naturellement vers la fin = réaliste.
-            float curvedRatio01 = Mathf.Sqrt(ratio01);
-            
+            // Pow(0.3) donne une courbe qui monte EN FLÈCHE dès le début, puis ralentit
+            float explosiveGrowth = Mathf.Pow(postTrigger, 0.3f); 
+
+            // Mélange : petit ratio de base (wisps) + grosse croissance après trigger
+            float basePortion = triggerRatio * 0.05f; // 5% max avant le trigger (wisps légers)
+            float curvedRatio01 = basePortion + explosiveGrowth * 0.95f; // 95% restant après trigger
+            curvedRatio01 = Mathf.Clamp01(curvedRatio01);
+
             var main01 = sharedSmoke01.main;
             main01.startSize = Mathf.Lerp(minSmoke01Size, maxSmoke01Size, curvedRatio01);
 
-            // Zone d'étalement (la fumée se diffuse dans l'air)
+            // Zone d'émission : de concentrée à TRÈS large (tout le bâtiment)
             var shape01 = sharedSmoke01.shape;
-            shape01.scale = Vector3.Lerp(initialSmoke01ShapeScale, new Vector3(maxSmoke01EmissionArea, maxSmoke01EmissionArea, maxSmoke01EmissionArea), curvedRatio01);
+            float area01 = Mathf.Lerp(minSmoke01EmissionArea, maxSmoke01EmissionArea, curvedRatio01);
+            shape01.scale = new Vector3(area01, area01, area01);
 
-            // Débit de particules (de quelques wisps à un gros nuage)
+            // Débit de particules : wisps au début, beaucoup après trigger
             var emission01 = sharedSmoke01.emission;
             emission01.rateOverTime = Mathf.Lerp(minSmoke01ParticlesRate, maxSmoke01ParticlesRate, curvedRatio01);
         }
 
         // ============================================
-        // LUMIÈRE GLOBALE
+        // LUMIÈRE GLOBALE — Scintillement + Couleur dynamique
         // ============================================
         if (globalLight != null && initialLightRange != 0f)
         {
             float lightRatio = Mathf.Clamp01((float)burningCells.Count / flamesForMaxEffects);
-            globalLight.range = Mathf.Lerp(initialLightRange, maxLightRange, lightRatio);
-            globalLight.intensity = Mathf.Lerp(initialLightIntensity, maxLightIntensity, lightRatio);
+
+            // Courbe pow(0.7) = monte vite au début → danger immédiat
+            float curvedLightRatio = Mathf.Pow(lightRatio, 0.7f);
+
+            // Valeurs de base (sans scintillement)
+            float baseRange = Mathf.Lerp(initialLightRange, maxLightRange, curvedLightRatio);
+            float baseIntensity = Mathf.Lerp(initialLightIntensity, maxLightIntensity, curvedLightRatio);
+
+            // Scintillement réaliste via Perlin Noise (deux fréquences pour plus d'organicité)
+            float flicker1 = Mathf.PerlinNoise(Time.time * lightFlickerSpeed, 0f);
+            float flicker2 = Mathf.PerlinNoise(0f, Time.time * lightFlickerSpeed * 1.7f);
+            float flickerValue = ((flicker1 + flicker2) / 2f - 0.5f) * 2f; // Normalisé [-1, 1]
+            float flickerMultiplier = 1f + flickerValue * lightFlickerAmount;
+
+            globalLight.range = baseRange * flickerMultiplier;
+            globalLight.intensity = baseIntensity * flickerMultiplier;
+
+            // Couleur dynamique : orange doux → orange/rouge intense
+            globalLight.color = Color.Lerp(lightColorStart, lightColorEnd, curvedLightRatio);
         }
     }
 
     private void TryPropagate()
     {
+        // 14 directions : 6 cardinales + 8 diagonales horizontales (propagation en éventail)
         Vector3[] directions = new Vector3[]
         {
+            // Cardinales horizontales
             Vector3.forward, Vector3.back,
             Vector3.left, Vector3.right,
-            Vector3.up, Vector3.down
+            // Verticales
+            Vector3.up, Vector3.down,
+            // Diagonales horizontales (le feu se propage en éventail dans un bâtiment)
+            new Vector3(1, 0, 1).normalized * 1.41f,
+            new Vector3(1, 0, -1).normalized * 1.41f,
+            new Vector3(-1, 0, 1).normalized * 1.41f,
+            new Vector3(-1, 0, -1).normalized * 1.41f,
+            // Diagonales vers le haut (le feu monte en éventail)
+            new Vector3(1, 1, 0).normalized * 1.41f,
+            new Vector3(-1, 1, 0).normalized * 1.41f,
+            new Vector3(0, 1, 1).normalized * 1.41f,
+            new Vector3(0, 1, -1).normalized * 1.41f
         };
 
+        // Mélanger aléatoirement les directions
         for (int i = 0; i < directions.Length; i++)
         {
             Vector3 temp = directions[i];
@@ -274,15 +348,22 @@ public class Fire_propagation : MonoBehaviour
             directions[randomIndex] = temp;
         }
 
+        int spreadCount = 0;
+
         foreach (Vector3 dir in directions)
         {
+            if (spreadCount >= maxSimultaneousSpreads) break;
+
+            // Chaque direction a une chance individuelle de propager
+            if (Random.value > propagationChance) continue;
+
             Vector3 targetPos = transform.position + (dir * cellSize);
 
             if (IsValidPropagationPosition(targetPos))
             {
                 GameObject newFire = Instantiate(gameObject, targetPos, transform.rotation);
                 newFire.name = "VFX_FullOpaqueFire_Clone_" + Time.frameCount;
-                break; 
+                spreadCount++;
             }
         }
     }
@@ -296,9 +377,7 @@ public class Fire_propagation : MonoBehaviour
         );
         if (burningCells.Contains(targetGridPos)) return false;
 
-        bool isInsideSolidWall = false;
-        bool isTouchingSurface = false;
-        
+        // === VÉRIFICATION 1 : La position n'est PAS à l'intérieur d'un mur ===
         Vector3 testCenter = pos + (Vector3.up * (cellSize * 0.1f));
         float half = (cellSize / 2f);
 
@@ -307,24 +386,33 @@ public class Fire_propagation : MonoBehaviour
         {
             if (!col.isTrigger && col.GetComponentInParent<Fire_propagation>() == null)
             {
-                isInsideSolidWall = true;
-                break;
+                return false; // À l'intérieur d'un mur
             }
         }
 
-        if (isInsideSolidWall) return false; 
-
-        Collider[] adjacentColliders = Physics.OverlapBox(testCenter, new Vector3(half * 1.3f, half * 1.3f, half * 1.3f));
-        foreach (Collider col in adjacentColliders)
+        // === VÉRIFICATION 2 : Le feu doit TOUCHER une surface physique adjacente ===
+        // Raycasts dans 6 directions pour détecter une surface adjacente.
+        // Le feu ne peut PAS se propager dans le vide / l'air.
+        float rayLength = cellSize * 0.75f;
+        Vector3[] rayDirs = new Vector3[]
         {
-            if (!col.isTrigger && col.GetComponentInParent<Fire_propagation>() == null)
+            Vector3.down, Vector3.up,
+            Vector3.left, Vector3.right,
+            Vector3.forward, Vector3.back
+        };
+
+        foreach (Vector3 dir in rayDirs)
+        {
+            if (Physics.Raycast(testCenter, dir, out RaycastHit hit, rayLength))
             {
-                isTouchingSurface = true;
-                break;
+                if (!hit.collider.isTrigger && hit.collider.GetComponentInParent<Fire_propagation>() == null)
+                {
+                    return true; // Touche un vrai modèle 3D valide (mur/sol) en intérieur
+                }
             }
         }
 
-        return isTouchingSurface;
+        return false; // Aucune surface physique à proximité = vide / air
     }
 
     private bool IsCompletelySurrounded()
@@ -361,5 +449,11 @@ public class Fire_propagation : MonoBehaviour
     static void ResetStaticData()
     {
         burningCells.Clear();
+        sharedSmoke = null;
+        sharedSmoke01 = null;
+        globalLight = null;
+        initialSmokeRate = -1f;
+        initialSmoke01Rate = -1f;
+        initialLightRange = 0f;
     }
 }
