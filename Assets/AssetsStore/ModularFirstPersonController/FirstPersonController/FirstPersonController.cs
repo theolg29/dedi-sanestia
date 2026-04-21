@@ -219,10 +219,9 @@ public class FirstPersonController : MonoBehaviour
                 pitch += mouseSensitivity * Input.GetAxis("Mouse Y");
             }
 
-            // Clamp pitch between lookAngle
-            pitch = Mathf.Clamp(pitch, -maxLookAngle, maxLookAngle);
 
             transform.localEulerAngles = new Vector3(0, yaw, 0);
+            pitch = Mathf.Clamp(pitch, -90f, 90f);
             playerCamera.transform.localEulerAngles = new Vector3(pitch, 0, 0);
         }
 
