@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Rendering;
 using System.Collections;
 
 /// <summary>
@@ -256,7 +257,7 @@ public class PlayerHealth : MonoBehaviour
 
         Debug.Log("[PlayerHealth] 💀 Le joueur est mort !");
 
-        // --- Figer l'effet visuel orange/flou AVANT de désactiver les scripts ---
+        // --- Figer l'overlay orange (le flou progressif sera lancé après la chute) ---
         FireProximityVision fireVision = GetComponent<FireProximityVision>();
         if (fireVision == null) fireVision = GetComponentInChildren<FireProximityVision>();
         if (fireVision == null) fireVision = FindObjectOfType<FireProximityVision>();
@@ -269,11 +270,11 @@ public class PlayerHealth : MonoBehaviour
         CharacterController cc = playerRoot.GetComponentInChildren<CharacterController>();
         if (cc != null) cc.enabled = false;
 
-        // Désactiver tous les MonoBehaviours sauf PlayerHealth et FireProximityVision
+        // Désactiver tous les MonoBehaviours sauf PlayerHealth, FireProximityVision et Volume (flou)
         MonoBehaviour[] allScripts = playerRoot.GetComponentsInChildren<MonoBehaviour>();
         foreach (MonoBehaviour script in allScripts)
         {
-            if (script != this && !(script is FireProximityVision)) script.enabled = false;
+            if (script != this && !(script is FireProximityVision) && !(script is Volume)) script.enabled = false;
         }
 
         // Bloquer et rendre invisible le curseur
@@ -317,6 +318,14 @@ public class PlayerHealth : MonoBehaviour
 
             cameraTransform.localPosition = endPos;
             cameraTransform.localRotation = endRot;
+        }
+
+        // === PHASE 1.5 : Lancer le flou progressif post-mortem ===
+        FireProximityVision deathVision = FindObjectOfType<FireProximityVision>();
+        if (deathVision != null)
+        {
+            deathVision.StartDeathBlur();
+            Debug.Log("[PlayerHealth] 🌫️ Flou de mort lancé");
         }
 
         // === PHASE 2 : Attendre avant la fermeture des yeux ===
