@@ -3,14 +3,15 @@ using UnityEngine;
 public class DoorController : MonoBehaviour
 {
     [Header("Door Settings")]
-    public string requiredItem = "Badge"; // Le nom exact de l'objet nécessaire
-    public float openAngle = 90f;         // Angle de la porte ouverte
-    public float openSpeed = 2f;          // Vitesse de l'animation
+    public GameObject requiredItem;  // Glisser ici le prefab de l'objet nécessaire
+
+    private const float openAngle = 90f;
+    private const float openSpeed = 2f;
 
     private bool isOpen = false;
     private Quaternion closedRotation;
     private Quaternion openRotation;
-    
+
     private InventoryManager inventory;
 
     void Start()
@@ -31,24 +32,24 @@ public class DoorController : MonoBehaviour
     public void TryOpen()
     {
         if (isOpen) return;
-
-        if (inventory != null)
+        if (inventory == null) return;
+        if (requiredItem == null)
         {
-            // On vérifie ce que le joueur tient en main dans sa Hotbar
-            string heldItem = inventory.GetActiveItem();
+            // Aucun item requis : la porte s'ouvre librement
+            isOpen = true;
+            return;
+        }
 
-            if (heldItem == requiredItem)
-            {
-                Debug.Log("Access Granted!");
-                isOpen = true; 
-                
-                // Note : On garde l'objet en main. Si tu veux que le badge 
-                // soit détruit après utilisation, on rajoutera une petite ligne plus tard !
-            }
-            else
-            {
-                Debug.Log("Access Denied. Required: " + requiredItem + ". You are holding: " + heldItem);
-            }
+        string heldItem = inventory.GetActiveItem();
+
+        if (heldItem == requiredItem.name)
+        {
+            Debug.Log("Access Granted!");
+            isOpen = true;
+        }
+        else
+        {
+            Debug.Log("Access Denied. Required: " + requiredItem.name + ". You are holding: " + heldItem);
         }
     }
 }

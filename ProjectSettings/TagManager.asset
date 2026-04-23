@@ -10,10 +10,10 @@ TagManager:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - Roof
+  - minimap-hidden
   - Water
   - UI
-  - 
+  - Minimap_Icon
   - 
   - 
   - 

@@ -1,40 +1,177 @@
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 
 public class PlayerInteract : MonoBehaviour
 {
     [Header("Interaction Settings")]
-    public float interactDistance = 3f; 
+    public float interactDistance = 3f;
     public Camera playerCamera;
+
+    [Header("Affordance")]
+    [Tooltip("Prompt UI — créé automatiquement si vide")]
+    public TextMeshProUGUI interactPromptText;
+    [Tooltip("Couleur d'émission appliquée sur l'objet visé")]
+    public Color highlightColor = new Color(1f, 0.85f, 0f);
+
+    // Colliders du joueur à ignorer dans le raycast
+    private Collider[] playerColliders;
+
+    // Surlignage en cours
+    private GameObject currentTarget;
+    private Renderer[] targetRenderers;
+    private Color[] savedEmissions;
+    private bool[] savedEmissionKeyword;
+
+    void Start()
+    {
+        // On mémorise tous les colliders du joueur pour les ignorer dans RaycastAll
+        playerColliders = transform.root.GetComponentsInChildren<Collider>();
+
+        if (interactPromptText == null)
+            BuildPromptUI();
+
+        ShowPrompt(false, "");
+    }
 
     void Update()
     {
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
-        RaycastHit hit;
 
-        if (Physics.Raycast(ray, out hit, interactDistance))
+        if (GetFirstHit(ray, out RaycastHit hit))
         {
-            // --- RAMASSER UN OBJET ---
-            if (hit.collider.CompareTag("Item"))
+            bool isItem = hit.collider.CompareTag("Item");
+            DoorController door = hit.collider.GetComponent<DoorController>();
+
+            if (isItem || door != null)
             {
+                if (currentTarget != hit.collider.gameObject)
+                {
+                    ClearHighlight();
+                    ApplyHighlight(hit.collider.gameObject);
+                }
+
+                ShowPrompt(true, door != null ? "E — Ouvrir" : "E — Ramasser");
+
                 if (Input.GetKeyDown(KeyCode.E))
                 {
-                    Debug.Log("Item picked up: " + hit.collider.gameObject.name);
-                    
-                    FindFirstObjectByType<InventoryManager>().AddItem(hit.collider.gameObject.name);
-                    
-                    Destroy(hit.collider.gameObject);
+                    if (isItem)
+                    {
+                        ClearHighlight();
+                        FindFirstObjectByType<InventoryManager>().AddItem(hit.collider.gameObject.name);
+                        Destroy(hit.collider.gameObject);
+                    }
+                    else
+                    {
+                        door.TryOpen();
+                    }
                 }
-            }
-
-            // --- OUVRIR UNE PORTE ---
-            if (hit.collider.CompareTag("Door") && Input.GetKeyDown(KeyCode.E))
-            {
-                DoorController targetedDoor = hit.collider.GetComponent<DoorController>();
-                if (targetedDoor != null)
-                {
-                    targetedDoor.TryOpen(); 
-                }
+                return;
             }
         }
+
+        ClearHighlight();
+        ShowPrompt(false, "");
+    }
+
+    // RaycastAll trié par distance + filtre des colliders du joueur
+    private bool GetFirstHit(Ray ray, out RaycastHit validHit)
+    {
+        RaycastHit[] hits = Physics.RaycastAll(ray, interactDistance);
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        foreach (RaycastHit hit in hits)
+        {
+            if (System.Array.Exists(playerColliders, c => c == hit.collider))
+                continue;
+
+            validHit = hit;
+            return true;
+        }
+
+        validHit = default;
+        return false;
+    }
+
+    private void ApplyHighlight(GameObject obj)
+    {
+        currentTarget = obj;
+        targetRenderers = obj.GetComponentsInChildren<Renderer>();
+        savedEmissions = new Color[targetRenderers.Length];
+        savedEmissionKeyword = new bool[targetRenderers.Length];
+
+        for (int i = 0; i < targetRenderers.Length; i++)
+        {
+            Material mat = targetRenderers[i].material;
+            savedEmissionKeyword[i] = mat.IsKeywordEnabled("_EMISSION");
+            savedEmissions[i] = mat.HasProperty("_EmissionColor")
+                ? mat.GetColor("_EmissionColor")
+                : Color.black;
+
+            mat.EnableKeyword("_EMISSION");
+            if (mat.HasProperty("_EmissionColor"))
+                mat.SetColor("_EmissionColor", highlightColor * 0.15f);
+        }
+    }
+
+    private void ClearHighlight()
+    {
+        if (currentTarget == null) return;
+
+        for (int i = 0; i < targetRenderers.Length; i++)
+        {
+            if (targetRenderers[i] == null) continue;
+            Material mat = targetRenderers[i].material;
+
+            if (!savedEmissionKeyword[i])
+                mat.DisableKeyword("_EMISSION");
+            if (mat.HasProperty("_EmissionColor"))
+                mat.SetColor("_EmissionColor", savedEmissions[i]);
+        }
+
+        currentTarget = null;
+        targetRenderers = null;
+    }
+
+    private void ShowPrompt(bool visible, string text)
+    {
+        if (interactPromptText == null) return;
+        interactPromptText.transform.parent.gameObject.SetActive(visible);
+        if (visible) interactPromptText.text = text;
+    }
+
+    private void BuildPromptUI()
+    {
+        GameObject canvasObj = new GameObject("InteractPrompt_Canvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 200;
+        canvasObj.AddComponent<CanvasScaler>();
+
+        GameObject panel = new GameObject("PromptPanel");
+        panel.transform.SetParent(canvasObj.transform, false);
+
+        Image bg = panel.AddComponent<Image>();
+        bg.color = new Color(0f, 0f, 0f, 0.55f);
+
+        RectTransform panelRect = panel.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.anchoredPosition = new Vector2(0f, -90f);
+        panelRect.sizeDelta = new Vector2(220f, 40f);
+
+        GameObject textObj = new GameObject("PromptText");
+        textObj.transform.SetParent(panel.transform, false);
+        interactPromptText = textObj.AddComponent<TextMeshProUGUI>();
+        interactPromptText.fontSize = 20;
+        interactPromptText.alignment = TextAlignmentOptions.Center;
+        interactPromptText.color = Color.white;
+
+        RectTransform textRect = textObj.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(8f, 4f);
+        textRect.offsetMax = new Vector2(-8f, -4f);
     }
 }
