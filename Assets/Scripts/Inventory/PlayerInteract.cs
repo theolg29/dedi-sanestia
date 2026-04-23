@@ -38,7 +38,8 @@ public class PlayerInteract : MonoBehaviour
         if (GetFirstHit(ray, out RaycastHit hit))
         {
             bool isItem = hit.collider.CompareTag("Item");
-            DoorController door = hit.collider.GetComponent<DoorController>();
+            DoorController door = hit.collider.GetComponent<DoorController>()
+                               ?? hit.collider.GetComponentInParent<DoorController>();
 
             if (isItem || door != null)
             {

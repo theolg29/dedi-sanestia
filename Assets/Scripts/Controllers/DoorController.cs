@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class DoorController : MonoBehaviour
 {
@@ -8,10 +9,12 @@ public class DoorController : MonoBehaviour
     [Header("Son")]
     public AudioClip sonOuverture;
 
-    private const float openAngle = 90f;
-    private const float openSpeed = 2f;
+    private const float openAngle    = 90f;
+    private const float animDuration = 0.6f;
 
-    private bool isOpen = false;
+    private bool isOpen      = false;
+    private bool isAnimating = false;
+
     private Quaternion closedRotation;
     private Quaternion openRotation;
 
@@ -20,45 +23,57 @@ public class DoorController : MonoBehaviour
     void Start()
     {
         closedRotation = transform.rotation;
-        openRotation = Quaternion.Euler(transform.eulerAngles + new Vector3(0, openAngle, 0));
-        audioSource = GetComponent<AudioSource>();
-    }
-
-    void Update()
-    {
-        Quaternion target = isOpen ? openRotation : closedRotation;
-        transform.rotation = Quaternion.Lerp(transform.rotation, target, Time.deltaTime * openSpeed);
+        openRotation   = closedRotation * Quaternion.Euler(0f, openAngle, 0f);
+        audioSource    = GetComponent<AudioSource>();
     }
 
     public bool IsOpen => isOpen;
 
     public void TryToggle()
     {
+        if (isAnimating) return;
+
         if (isOpen)
         {
             isOpen = false;
             JouerSon();
+            StartCoroutine(AnimateRotation(openRotation, closedRotation));
             return;
         }
 
         if (requiredItem == null)
         {
-            isOpen = true;
-            JouerSon();
+            Ouvrir();
             return;
         }
 
         if (PlayerInventory.instance == null) return;
 
         if (PlayerInventory.instance.GetItem() == requiredItem.name)
+            Ouvrir();
+    }
+
+    private void Ouvrir()
+    {
+        isOpen = true;
+        JouerSon();
+        StartCoroutine(AnimateRotation(closedRotation, openRotation));
+    }
+
+    private IEnumerator AnimateRotation(Quaternion from, Quaternion to)
+    {
+        isAnimating = true;
+        float elapsed = 0f;
+
+        while (elapsed < animDuration)
         {
-            isOpen = true;
-            JouerSon();
+            elapsed += Time.deltaTime;
+            transform.rotation = Quaternion.Slerp(from, to, elapsed / animDuration);
+            yield return null;
         }
-        else
-        {
-            Debug.Log("Access Denied. Required: " + requiredItem.name);
-        }
+
+        transform.rotation = to;
+        isAnimating = false;
     }
 
     private void JouerSon()
