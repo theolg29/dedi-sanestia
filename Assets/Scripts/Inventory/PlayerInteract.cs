@@ -14,10 +14,8 @@ public class PlayerInteract : MonoBehaviour
     [Tooltip("Couleur d'émission appliquée sur l'objet visé")]
     public Color highlightColor = new Color(1f, 0.85f, 0f);
 
-    // Colliders du joueur à ignorer dans le raycast
     private Collider[] playerColliders;
 
-    // Surlignage en cours
     private GameObject currentTarget;
     private Renderer[] targetRenderers;
     private Color[] savedEmissions;
@@ -25,7 +23,6 @@ public class PlayerInteract : MonoBehaviour
 
     void Start()
     {
-        // On mémorise tous les colliders du joueur pour les ignorer dans RaycastAll
         playerColliders = transform.root.GetComponentsInChildren<Collider>();
 
         if (interactPromptText == null)
@@ -51,19 +48,21 @@ public class PlayerInteract : MonoBehaviour
                     ApplyHighlight(hit.collider.gameObject);
                 }
 
-                ShowPrompt(true, door != null ? "E — Ouvrir" : "E — Ramasser");
+                string prompt = isItem ? "E — Ramasser" : (door.IsOpen ? "E — Fermer" : "E — Ouvrir");
+                ShowPrompt(true, prompt);
 
                 if (Input.GetKeyDown(KeyCode.E))
                 {
                     if (isItem)
                     {
                         ClearHighlight();
-                        FindFirstObjectByType<InventoryManager>().AddItem(hit.collider.gameObject.name);
+                        if (PlayerInventory.instance != null)
+                            PlayerInventory.instance.PickUp(hit.collider.gameObject.name);
                         Destroy(hit.collider.gameObject);
                     }
                     else
                     {
-                        door.TryOpen();
+                        door.TryToggle();
                     }
                 }
                 return;
@@ -74,7 +73,6 @@ public class PlayerInteract : MonoBehaviour
         ShowPrompt(false, "");
     }
 
-    // RaycastAll trié par distance + filtre des colliders du joueur
     private bool GetFirstHit(Ray ray, out RaycastHit validHit)
     {
         RaycastHit[] hits = Physics.RaycastAll(ray, interactDistance);

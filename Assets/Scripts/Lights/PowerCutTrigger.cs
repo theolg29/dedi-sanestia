@@ -20,5 +20,8 @@ public class PowerCutTrigger : MonoBehaviour
 
         foreach (FlickeringNeon neon in FindObjectsByType<FlickeringNeon>(FindObjectsSortMode.None))
             neon.SwitchToSecurity();
+
+        foreach (SurveillanceCameraController cam in FindObjectsByType<SurveillanceCameraController>(FindObjectsSortMode.None))
+            cam.CutPower();
     }
 }

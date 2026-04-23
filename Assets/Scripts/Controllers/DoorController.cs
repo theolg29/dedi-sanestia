@@ -3,7 +3,10 @@ using UnityEngine;
 public class DoorController : MonoBehaviour
 {
     [Header("Door Settings")]
-    public GameObject requiredItem;  // Glisser ici le prefab de l'objet nécessaire
+    public GameObject requiredItem;
+
+    [Header("Son")]
+    public AudioClip sonOuverture;
 
     private const float openAngle = 90f;
     private const float openSpeed = 2f;
@@ -12,44 +15,58 @@ public class DoorController : MonoBehaviour
     private Quaternion closedRotation;
     private Quaternion openRotation;
 
-    private InventoryManager inventory;
+    private AudioSource audioSource;
 
     void Start()
     {
         closedRotation = transform.rotation;
         openRotation = Quaternion.Euler(transform.eulerAngles + new Vector3(0, openAngle, 0));
-        inventory = FindFirstObjectByType<InventoryManager>();
+        audioSource = GetComponent<AudioSource>();
     }
 
     void Update()
     {
-        if (isOpen)
-        {
-            transform.rotation = Quaternion.Lerp(transform.rotation, openRotation, Time.deltaTime * openSpeed);
-        }
+        Quaternion target = isOpen ? openRotation : closedRotation;
+        transform.rotation = Quaternion.Lerp(transform.rotation, target, Time.deltaTime * openSpeed);
     }
 
-    public void TryOpen()
+    public bool IsOpen => isOpen;
+
+    public void TryToggle()
     {
-        if (isOpen) return;
-        if (inventory == null) return;
-        if (requiredItem == null)
+        if (isOpen)
         {
-            // Aucun item requis : la porte s'ouvre librement
-            isOpen = true;
+            isOpen = false;
+            JouerSon();
             return;
         }
 
-        string heldItem = inventory.GetActiveItem();
-
-        if (heldItem == requiredItem.name)
+        if (requiredItem == null)
         {
-            Debug.Log("Access Granted!");
             isOpen = true;
+            JouerSon();
+            return;
+        }
+
+        if (PlayerInventory.instance == null) return;
+
+        if (PlayerInventory.instance.GetItem() == requiredItem.name)
+        {
+            isOpen = true;
+            JouerSon();
         }
         else
         {
-            Debug.Log("Access Denied. Required: " + requiredItem.name + ". You are holding: " + heldItem);
+            Debug.Log("Access Denied. Required: " + requiredItem.name);
         }
+    }
+
+    private void JouerSon()
+    {
+        if (sonOuverture == null) return;
+        if (audioSource != null)
+            audioSource.PlayOneShot(sonOuverture);
+        else
+            AudioSource.PlayClipAtPoint(sonOuverture, transform.position);
     }
 }
