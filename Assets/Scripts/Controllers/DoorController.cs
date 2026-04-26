@@ -8,6 +8,7 @@ public class DoorController : MonoBehaviour
 
     [Header("Son")]
     public AudioClip sonOuverture;
+    public AudioClip sonVerrouille;
 
     private const float openAngle    = 90f;
     private const float animDuration = 0.6f;
@@ -28,29 +29,35 @@ public class DoorController : MonoBehaviour
     }
 
     public bool IsOpen => isOpen;
+    public bool IsLocked => requiredItem != null && PlayerInventory.instance?.GetItem() != requiredItem.name;
 
-    public void TryToggle()
+    public bool TryToggle()
     {
-        if (isAnimating) return;
+        if (isAnimating) return false;
 
         if (isOpen)
         {
             isOpen = false;
             JouerSon();
             StartCoroutine(AnimateRotation(openRotation, closedRotation));
-            return;
+            return true;
         }
 
         if (requiredItem == null)
         {
             Ouvrir();
-            return;
+            return true;
         }
 
-        if (PlayerInventory.instance == null) return;
+        if (PlayerInventory.instance == null) return false;
 
         if (PlayerInventory.instance.GetItem() == requiredItem.name)
+        {
             Ouvrir();
+            return true;
+        }
+
+        return false;
     }
 
     private void Ouvrir()
@@ -74,6 +81,15 @@ public class DoorController : MonoBehaviour
 
         transform.rotation = to;
         isAnimating = false;
+    }
+
+    public void JouerSonVerrouille()
+    {
+        if (sonVerrouille == null) return;
+        if (audioSource != null)
+            audioSource.PlayOneShot(sonVerrouille);
+        else
+            AudioSource.PlayClipAtPoint(sonVerrouille, transform.position);
     }
 
     private void JouerSon()

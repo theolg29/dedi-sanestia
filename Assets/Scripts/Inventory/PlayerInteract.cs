@@ -9,10 +9,16 @@ public class PlayerInteract : MonoBehaviour
     public Camera playerCamera;
 
     [Header("Affordance")]
-    [Tooltip("Prompt UI — créé automatiquement si vide")]
+    [Tooltip("Prompt UI - créé automatiquement si vide")]
     public TextMeshProUGUI interactPromptText;
     [Tooltip("Couleur d'émission appliquée sur l'objet visé")]
     public Color highlightColor = new Color(1f, 0.85f, 0f);
+
+    [Header("Notification")]
+    [Tooltip("Durée d'affichage de la notif porte verrouillée")]
+    public float notifDuration = 2f;
+    private TextMeshProUGUI _notifText;
+    private Coroutine _notifCoroutine;
 
     private Collider[] playerColliders;
 
@@ -28,20 +34,31 @@ public class PlayerInteract : MonoBehaviour
         if (interactPromptText == null)
             BuildPromptUI();
 
+        BuildNotifUI();
         ShowPrompt(false, "");
     }
 
     void Update()
     {
+        if (Input.GetKeyDown(KeyCode.J))
+        {
+            Vector3 spawnPos = playerCamera.transform.position + playerCamera.transform.forward * 1.5f;
+            PlayerInventory.instance?.Throw(spawnPos, playerCamera.transform.forward);
+        }
+
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
 
         if (GetFirstHit(ray, out RaycastHit hit))
         {
-            bool isItem = hit.collider.CompareTag("Item");
+            GameObject itemObj = FindTaggedParent(hit.collider.gameObject, "Item");
+            bool isItem   = itemObj != null;
+            bool isCarton = hit.collider.CompareTag("Carton");
             DoorController door = hit.collider.GetComponent<DoorController>()
                                ?? hit.collider.GetComponentInParent<DoorController>();
+            SecurityTVController tv = hit.collider.GetComponent<SecurityTVController>()
+                                   ?? hit.collider.GetComponentInParent<SecurityTVController>();
 
-            if (isItem || door != null)
+            if (isItem || isCarton || door != null || tv != null)
             {
                 if (currentTarget != hit.collider.gameObject)
                 {
@@ -49,7 +66,11 @@ public class PlayerInteract : MonoBehaviour
                     ApplyHighlight(hit.collider.gameObject);
                 }
 
-                string prompt = isItem ? "E — Ramasser" : (door.IsOpen ? "E — Fermer" : "E — Ouvrir");
+                string prompt;
+                if (isItem)            prompt = "E - Prendre";
+                else if (isCarton)     prompt = "Clic gauche - Déplacer";
+                else if (door != null) prompt = door.IsOpen ? "E - Fermer" : "E - Ouvrir";
+                else                   prompt = $"E - Caméra suivante  ({tv.CurrentIndex + 1}/{tv.cameraFeeds.Length})";
                 ShowPrompt(true, prompt);
 
                 if (Input.GetKeyDown(KeyCode.E))
@@ -57,13 +78,19 @@ public class PlayerInteract : MonoBehaviour
                     if (isItem)
                     {
                         ClearHighlight();
-                        if (PlayerInventory.instance != null)
-                            PlayerInventory.instance.PickUp(hit.collider.gameObject.name);
-                        Destroy(hit.collider.gameObject);
+                        PlayerInventory.instance?.PickUp(itemObj);
+                    }
+                    else if (door != null)
+                    {
+                        if (!door.TryToggle() && door.IsLocked)
+                        {
+                            door.JouerSonVerrouille();
+                            ShowNotif("Impossible d'ouvrir cette porte");
+                        }
                     }
                     else
                     {
-                        door.TryToggle();
+                        tv.Interact();
                     }
                 }
                 return;
@@ -139,6 +166,69 @@ public class PlayerInteract : MonoBehaviour
         if (visible) interactPromptText.text = text;
     }
 
+    private void ShowNotif(string message)
+    {
+        if (_notifCoroutine != null) StopCoroutine(_notifCoroutine);
+        _notifCoroutine = StartCoroutine(NotifCoroutine(message));
+    }
+
+    private System.Collections.IEnumerator NotifCoroutine(string message)
+    {
+        if (_notifText == null) yield break;
+        _notifText.transform.parent.gameObject.SetActive(true);
+        _notifText.text = message;
+        yield return new WaitForSeconds(notifDuration);
+        _notifText.transform.parent.gameObject.SetActive(false);
+    }
+
+    private void BuildNotifUI()
+    {
+        GameObject canvasObj = new GameObject("Notif_Canvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 201;
+        canvasObj.AddComponent<CanvasScaler>();
+
+        GameObject panel = new GameObject("NotifPanel");
+        panel.transform.SetParent(canvasObj.transform, false);
+
+        Image bg = panel.AddComponent<Image>();
+        bg.color = new Color(0.8f, 0.2f, 0.2f, 0.75f);  // FOND_ERREUR
+
+        RectTransform panelRect = panel.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot     = new Vector2(0.5f, 0.5f);
+        panelRect.anchoredPosition = new Vector2(0f, -155f);
+        panelRect.sizeDelta = new Vector2(300f, 40f);
+
+        GameObject textObj = new GameObject("NotifText");
+        textObj.transform.SetParent(panel.transform, false);
+        _notifText = textObj.AddComponent<TextMeshProUGUI>();
+        _notifText.fontSize  = 17;
+        _notifText.alignment = TextAlignmentOptions.Center;
+        _notifText.color     = Color.white;
+
+        RectTransform textRect = textObj.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(8f, 4f);
+        textRect.offsetMax = new Vector2(-8f, -4f);
+
+        panel.SetActive(false);
+    }
+
+    private static GameObject FindTaggedParent(GameObject obj, string tag)
+    {
+        Transform t = obj.transform;
+        while (t != null)
+        {
+            if (t.CompareTag(tag)) return t.gameObject;
+            t = t.parent;
+        }
+        return null;
+    }
+
     private void BuildPromptUI()
     {
         GameObject canvasObj = new GameObject("InteractPrompt_Canvas");
@@ -158,7 +248,7 @@ public class PlayerInteract : MonoBehaviour
         panelRect.anchorMax = new Vector2(0.5f, 0.5f);
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.anchoredPosition = new Vector2(0f, -90f);
-        panelRect.sizeDelta = new Vector2(220f, 40f);
+        panelRect.sizeDelta = new Vector2(240f, 40f);
 
         GameObject textObj = new GameObject("PromptText");
         textObj.transform.SetParent(panel.transform, false);

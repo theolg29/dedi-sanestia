@@ -6,12 +6,9 @@ public class MinimapFollow : MonoBehaviour
 
     void LateUpdate()
     {
-        if (player != null)
-        {
-            // On suit la position X et Z du joueur, mais on garde la hauteur (Y) de la caméra
-            Vector3 newPosition = player.position;
-            newPosition.y = transform.position.y;
-            transform.position = newPosition;
-        }
+        if (player == null) return;
+        Vector3 pos = player.position;
+        pos.y = transform.position.y;
+        transform.position = pos;
     }
 }

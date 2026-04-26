@@ -88,7 +88,8 @@ public class HelicopterController : MonoBehaviour
         var turn = TurnForce * Mathf.Lerp(hMove.x, hMove.x * (turnTiltForcePercent - Mathf.Abs(hMove.y)), Mathf.Max(0f, hMove.y));
         hTurn = Mathf.Lerp(hTurn, turn, Time.fixedDeltaTime * TurnForce);
         HelicopterModel.AddRelativeTorque(0f, hTurn * HelicopterModel.mass, 0f);
-        HelicopterModel.AddRelativeForce(Vector3.forward * Mathf.Max(0f, hMove.y * ForwardForce * HelicopterModel.mass));
+        HelicopterModel.AddRelativeForce(Vector3.forward * hMove.y * ForwardForce * HelicopterModel.mass);
+        HelicopterModel.AddRelativeForce(Vector3.right * hMove.x * ForwardForce * HelicopterModel.mass);
     }
 
     private void TiltProcess()
