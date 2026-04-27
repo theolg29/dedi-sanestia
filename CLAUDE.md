@@ -59,6 +59,12 @@ Scripts/
 
 Control scheme uses **AZERTY** layout (ZQSD movement). Key bindings: E = interact, I = inventory, G = drop, F = flashlight, Shift = sprint, Ctrl = crouch, mouse wheel = hotbar scroll, right-click release = throw.
 
+## UI Text rules
+
+- Always use `-` (hyphen) in player-facing strings — never `—` (em dash). Em dashes may not render correctly depending on the font asset loaded at runtime.
+- Always use **TextMeshPro** (`TMPro`) — never `UnityEngine.UI.Text`.
+- UI text styles are documented in `TEXT_STYLES.md` — follow them for any new UI element.
+
 ## Packages of note
 
 - `com.unity.probuilder` 6.0.9 — level greyboxing

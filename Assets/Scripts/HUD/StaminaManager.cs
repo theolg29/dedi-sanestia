@@ -10,52 +10,50 @@ public class StaminaManager : MonoBehaviour
 
     [Header("Stamina Settings")]
     public float maxStamina = 100f;
-    public float drainRate = 20f;
-    public float regenRate = 15f;
+    public float drainRate  = 20f;
+    public float regenRate  = 15f;
 
-    // La variable qui gère l'autorisation de courir
-    public bool canSprint = true; 
+    [Header("Exhaustion Settings")]
+    public float exhaustionCooldown = 3f;
+
+    public bool canSprint = true;
 
     private float currentStamina;
+    private bool  isExhausted    = false;
+    private float exhaustionTimer = 0f;
 
-    void Awake()
-    {
-        instance = this;
-    }
+    void Awake() => instance = this;
 
-    void Start()
-    {
-        currentStamina = maxStamina;
-    }
+    void Start() => currentStamina = maxStamina;
 
     void Update()
     {
-        // 1. Check exhaustion
-        if (currentStamina <= 0f)
+        if (currentStamina <= 0f && !isExhausted)
         {
-            canSprint = false; 
+            isExhausted    = true;
+            exhaustionTimer = exhaustionCooldown;
+            canSprint      = false;
         }
-        else if (currentStamina >= 20f) // Recovers at least 20% before sprinting again
+
+        if (isExhausted)
+        {
+            exhaustionTimer -= Time.deltaTime;
+            canSprint        = false;
+            if (exhaustionTimer <= 0f && currentStamina >= maxStamina * 0.2f)
+                isExhausted = false;
+        }
+        else if (currentStamina >= maxStamina * 0.2f)
         {
             canSprint = true;
         }
 
-        // 2. Drain or Regenerate Stamina
-        if (Input.GetKey(KeyCode.LeftShift) && canSprint && (Input.GetAxis("Vertical") != 0 || Input.GetAxis("Horizontal") != 0))
-        {
-            currentStamina -= drainRate * Time.deltaTime;
-        }
-        else
-        {
-            currentStamina += regenRate * Time.deltaTime;
-        }
+        bool sprinting = Input.GetKey(KeyCode.LeftShift) && canSprint
+                      && (Input.GetAxis("Vertical") != 0 || Input.GetAxis("Horizontal") != 0);
 
-        currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+        currentStamina += (sprinting ? -drainRate : regenRate) * Time.deltaTime;
+        currentStamina  = Mathf.Clamp(currentStamina, 0f, maxStamina);
 
-        // 3. Update UI Bar
         if (sprintBarUI != null)
-        {
             sprintBarUI.fillAmount = currentStamina / maxStamina;
-        }
     }
 }

@@ -6,9 +6,9 @@ public class ControlPanel : MonoBehaviour {
     public AudioSource MusicSound;
 
     [SerializeField]
-    KeyCode SpeedUp = KeyCode.Space;
+    KeyCode SpeedUp = KeyCode.LeftShift;
     [SerializeField]
-    KeyCode SpeedDown = KeyCode.W;
+    KeyCode SpeedDown = KeyCode.Space;
     [SerializeField]
     KeyCode Forward = KeyCode.Z;
     [SerializeField]
@@ -46,29 +46,27 @@ public class ControlPanel : MonoBehaviour {
 	
 	}
 
-	void FixedUpdate ()
-	{
-	    var pressedKeyCode = new List<PressedKeyCode>();
-	    for (int index = 0; index < keyCodes.Length; index++)
-	    {
-	        var keyCode = keyCodes[index];
-	        if (Input.GetKey(keyCode))
+    void Update()
+    {
+        var pressedKeyCode = new List<PressedKeyCode>();
+        for (int index = 0; index < keyCodes.Length; index++)
+        {
+            var keyCode = keyCodes[index];
+            if (Input.GetKey(keyCode))
                 pressedKeyCode.Add((PressedKeyCode)index);
-	    }
+        }
 
-	    if (KeyPressed != null)
-	        KeyPressed(pressedKeyCode.ToArray());
+        if (KeyPressed != null)
+            KeyPressed(pressedKeyCode.ToArray());
 
-        // for test
         if (Input.GetKey(MusicOffOn))
         {
-           if (MusicSound != null)
-           {
-               if (MusicSound.volume == 1) return;
-               MusicSound.volume = 1;
-               if (!MusicSound.isPlaying) MusicSound.Play();
-           }
+            if (MusicSound != null)
+            {
+                if (MusicSound.volume == 1) return;
+                MusicSound.volume = 1;
+                if (!MusicSound.isPlaying) MusicSound.Play();
+            }
         }
-      
-	}
+    }
 }

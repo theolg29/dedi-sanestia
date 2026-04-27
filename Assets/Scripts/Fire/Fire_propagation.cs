@@ -13,11 +13,13 @@ public class Fire_propagation : MonoBehaviour
 
     [Header("Propagation Réaliste")]
     [Tooltip("Délai fixe entre chaque tentative de propagation (plus gérable)")]
-    public float propagationInterval = 8f; // Plus lent, fixe
+    public float propagationInterval = 15f;
     [Tooltip("Probabilité (0-1) que chaque direction propage le feu")]
-    public float propagationChance = 0.12f; // Plus faible
+    public float propagationChance = 0.07f;
     [Tooltip("Nombre max de propagations simultanées par tick")]
-    public int maxSimultaneousSpreads = 1; // 1 seul pour éviter l'exponentielle
+    public int maxSimultaneousSpreads = 1;
+    [Tooltip("Nombre maximum de flammes dans la scène (0 = illimité)")]
+    public int maxFireCount = 60;
 
     [Header("FX Globaux (Lumière)")]
     public float flamesForMaxEffects = 500f;
@@ -72,6 +74,9 @@ public class Fire_propagation : MonoBehaviour
     private static ParticleSystem sharedSmoke;
     private static ParticleSystem sharedSmoke01;
     private static Light globalLight;
+
+    // Flag pour que le code FX global ne tourne qu'une seule fois par frame
+    private static int lastFXUpdateFrame = -1;
 
     // Valeurs de départ (sauvegardées automatiquement)
     private static float initialSmokeRate = -1f;
@@ -229,6 +234,9 @@ public class Fire_propagation : MonoBehaviour
         }
 
         // --- MISE À JOUR GLOBALE (FUMÉE & LUMIÈRE) ---
+        // Une seule instance par frame exécute ce bloc pour éviter le travail en O(n)
+        if (lastFXUpdateFrame == Time.frameCount) return;
+        lastFXUpdateFrame = Time.frameCount;
 
         // ============================================
         // FX_Smoke = FUMÉE NOIRE / SUIE
@@ -319,6 +327,8 @@ public class Fire_propagation : MonoBehaviour
 
     private void TryPropagate()
     {
+        if (maxFireCount > 0 && burningCells.Count >= maxFireCount) return;
+
         // 14 directions : 6 cardinales + 8 diagonales horizontales (propagation en éventail)
         Vector3[] directions = new Vector3[]
         {
@@ -455,5 +465,6 @@ public class Fire_propagation : MonoBehaviour
         initialSmokeRate = -1f;
         initialSmoke01Rate = -1f;
         initialLightRange = 0f;
+        lastFXUpdateFrame = -1;
     }
 }

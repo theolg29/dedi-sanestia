@@ -1,4 +1,8 @@
-# INTEGRATION — Système de Portes (DoorController)
+# INTEGRATION — Controllers
+
+---
+
+## A. DoorController — Système de Portes
 
 ## Script concerné
 `DoorController.cs` — À placer sur chaque porte verrouillée de la scène.
@@ -49,3 +53,44 @@ Le joueur appuie sur **E** face à la porte → `PlayerInteract` appelle `TryOpe
 - [ ] Pivot de la porte sur le bon bord
 - [ ] `requiredItem` = nom exact de l'item dans `PlayerHand`
 - [ ] Un `InventoryManager` existe dans la scène
+
+---
+
+## B. SurveillanceCameraController — Caméra de surveillance
+
+### Script concerné
+`SurveillanceCameraController.cs` — À placer sur le GameObject **Camera** (enfant du prefab caméra de surveillance).
+
+### Structure du prefab
+```
+Surveillance Camera
+├── Base
+│   └── Sphere        ← LED de statut (Renderer)
+└── Camera            ← SurveillanceCameraController.cs ici
+```
+
+### Relier dans l'Inspector
+
+| Champ | Quoi glisser |
+|---|---|
+| `led` | Le `Renderer` de la Sphere |
+
+### Paramètres
+
+| Paramètre | Valeur par défaut | Description |
+|---|---|---|
+| `angleMax` | `45°` | Amplitude de balayage gauche/droite |
+| `vitesse` | `30°/s` | Vitesse de rotation |
+| `rotationX` | `20°` | Inclinaison fixe sur X |
+| `dureeAllumee` | `1s` | Durée LED allumée |
+| `dureeEteinte` | `1s` | Durée LED éteinte |
+
+### Comportement
+- La caméra oscille en Y entre `-angleMax` et `+angleMax` en boucle.
+- La rotation X reste fixe à `rotationX`.
+- La LED (Sphere) clignote selon `dureeAllumee` / `dureeEteinte`.
+- Utilise `localRotation` — respecte l'orientation du parent.
+
+### Checklist
+- [ ] `SurveillanceCameraController.cs` sur le GameObject `Camera` (enfant)
+- [ ] `led` relié au Renderer de la Sphere

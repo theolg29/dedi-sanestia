@@ -6,72 +6,61 @@ public class FlickeringNeon : MonoBehaviour
     [Header("Composants à relier")]
     public Light lumiereNeon;
     public Renderer cylindreNeon;
-    public AudioSource audioNeon;
 
-    // Temps de clignotement (On/Off) 100% aléatoire
-    private float tempsMin = 0.05f;
-    private float tempsMax = 1.0f; 
+    [Header("Couleurs")]
+    public Color  normalColor       = Color.white;
+    public float  normalIntensity   = 1f;
+    public Color  securityColor     = new Color(0.2f, 0.5f, 1f);
+    public float  securityIntensity = 0.8f;
+    public float  transitionDuration = 2f;
 
     private Material materialNeon;
-    private Color couleurEmissionInitiale;
-    
-    // Variables pour le tremblement d'intensité
-    private float intensiteInitiale;
-    private bool estAllume = true; 
 
     void Start()
     {
-        // On mémorise la puissance d'origine réglée dans l'Inspector
-        if (lumiereNeon != null) 
+        if (lumiereNeon != null)
         {
-            intensiteInitiale = lumiereNeon.intensity;
+            lumiereNeon.color     = normalColor;
+            lumiereNeon.intensity = normalIntensity;
         }
 
         if (cylindreNeon != null)
         {
             materialNeon = cylindreNeon.material;
-            couleurEmissionInitiale = materialNeon.GetColor("_EmissionColor");
-        }
-
-        StartCoroutine(ClignotementAleatoire());
-    }
-
-    void Update()
-    {
-        // --- LE TREMBLEMENT MASSIF ---
-        // Si le néon est "allumé", on fait chuter son intensité de façon brutale.
-        if (estAllume && lumiereNeon != null)
-        {
-            // MODIFICATION ICI : On choisit une valeur aléatoire entre 10% (0.1f) 
-            // et 100% de l'intensité de base. La chute est énorme !
-            lumiereNeon.intensity = Random.Range(intensiteInitiale * 0.1f, intensiteInitiale);
+            materialNeon.EnableKeyword("_EMISSION");
+            materialNeon.SetColor("_EmissionColor", normalColor);
         }
     }
 
-    IEnumerator ClignotementAleatoire()
+    public void SwitchToSecurity()
     {
-        while (true)
+        if (lumiereNeon == null) return;
+        StartCoroutine(TransitionToSecurity());
+    }
+
+    private IEnumerator TransitionToSecurity()
+    {
+        float elapsed = 0f;
+        Color startColor     = lumiereNeon.color;
+        float startIntensity = lumiereNeon.intensity;
+        Color startEmission  = materialNeon != null ? materialNeon.GetColor("_EmissionColor") : normalColor;
+
+        while (elapsed < transitionDuration)
         {
-            // 1. Attente aléatoire avant de changer d'état
-            yield return new WaitForSeconds(Random.Range(tempsMin, tempsMax));
+            elapsed += Time.deltaTime;
+            float t = elapsed / transitionDuration;
 
-            // 2. Inversion de l'état
-            estAllume = !estAllume;
-            lumiereNeon.enabled = estAllume;
+            lumiereNeon.color     = Color.Lerp(startColor, securityColor, t);
+            lumiereNeon.intensity = Mathf.Lerp(startIntensity, securityIntensity, t);
 
-            // 3. Application du visuel (Matériau) et du son
-            if (estAllume)
-            {
-                // On s'assure que la lumière repart sur une bonne base d'intensité
-                lumiereNeon.intensity = intensiteInitiale; 
-                if (materialNeon != null) materialNeon.SetColor("_EmissionColor", couleurEmissionInitiale);
-                if (audioNeon != null) audioNeon.mute = false;
-            }
-            else
-            {
-                if (materialNeon != null) materialNeon.SetColor("_EmissionColor", Color.black);
-                if (audioNeon != null) audioNeon.mute = true;
-            }
+            if (materialNeon != null)
+                materialNeon.SetColor("_EmissionColor", Color.Lerp(startEmission, securityColor, t));
+
+            yield return null;
         }
+
+        lumiereNeon.color     = securityColor;
+        lumiereNeon.intensity = securityIntensity;
+        if (materialNeon != null) materialNeon.SetColor("_EmissionColor", securityColor);
     }
 }
