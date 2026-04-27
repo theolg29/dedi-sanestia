@@ -13,6 +13,8 @@ public class HelicopterInteraction : MonoBehaviour
     [Header("HUD")]
     [Tooltip("HUD_Panel dans le GameCanvas")]
     public GameObject hudPanel;
+    [Tooltip("Minimap a garder visible en helico")]
+    public GameObject minimapPanel;
 
     [Header("Settings")]
     public float interactionDistance = 5f;
@@ -25,6 +27,13 @@ public class HelicopterInteraction : MonoBehaviour
     public float lookHeightOffset = 1f;
     public float camFollowSpeed = 6f;
     public float camRotateSpeed = 5f;
+
+    [Header("Son")]
+    public AudioSource helicopterAudio;
+    public float pitchNeutral = 1f;
+    public float pitchUp      = 1.35f;
+    public float pitchDown    = 0.75f;
+    public float pitchSmooth  = 3f;
 
     [Header("Startup Sequence")]
     [Tooltip("Durée du démarrage moteur avant de pouvoir voler")]
@@ -92,6 +101,14 @@ public class HelicopterInteraction : MonoBehaviour
                 exitCooldown = 1f;
             }
 
+            if (!isStartingUp && helicopterAudio != null)
+            {
+                float targetPitch = pitchNeutral;
+                if (Input.GetKey(KeyCode.LeftShift))       targetPitch = pitchUp;
+                else if (Input.GetKey(KeyCode.Space))      targetPitch = pitchDown;
+
+                helicopterAudio.pitch = Mathf.Lerp(helicopterAudio.pitch, targetPitch, Time.deltaTime * pitchSmooth);
+            }
         }
     }
 
@@ -157,6 +174,18 @@ public class HelicopterInteraction : MonoBehaviour
 
         // Masquer le HUD
         if (hudPanel != null) hudPanel.SetActive(false);
+        if (minimapPanel != null) minimapPanel.SetActive(true);
+
+        // Masquer la main du joueur (item tenu, flashlight, clé...)
+        PlayerInventory inv = playerController.GetComponent<PlayerInventory>();
+        if (inv != null && inv.playerHand != null)
+            inv.playerHand.gameObject.SetActive(false);
+
+        if (helicopterAudio != null)
+        {
+            helicopterAudio.pitch = 0f;
+            helicopterAudio.Play();
+        }
 
         isInHelicopter = true;
         StartCoroutine(StartupSequence());
@@ -170,8 +199,14 @@ public class HelicopterInteraction : MonoBehaviour
         while (elapsed < startupDuration)
         {
             elapsed += Time.deltaTime;
+            float t = elapsed / startupDuration;
+
             if (helicopterController != null)
-                helicopterController.EngineForce = Mathf.Lerp(0f, idleEngineForce, elapsed / startupDuration);
+                helicopterController.EngineForce = Mathf.Lerp(0f, idleEngineForce, t);
+
+            if (helicopterAudio != null)
+                helicopterAudio.pitch = Mathf.Lerp(0f, 1f, t);
+
             yield return null;
         }
 
@@ -181,6 +216,9 @@ public class HelicopterInteraction : MonoBehaviour
             if (helicopterController.ControlPanel)
                 helicopterController.ControlPanel.enabled = true;
         }
+
+        if (helicopterAudio != null)
+            helicopterAudio.pitch = 1f;
 
         isStartingUp = false;
     }
@@ -223,6 +261,12 @@ public class HelicopterInteraction : MonoBehaviour
 
         // Réafficher le HUD
         if (hudPanel != null) hudPanel.SetActive(true);
+
+        PlayerInventory inv = playerController.GetComponent<PlayerInventory>();
+        if (inv != null && inv.playerHand != null)
+            inv.playerHand.gameObject.SetActive(true);
+
+        if (helicopterAudio != null) helicopterAudio.Stop();
 
         isInHelicopter = false;
     }

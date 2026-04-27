@@ -52,7 +52,7 @@ public class PlayerInteract : MonoBehaviour
         {
             GameObject itemObj = FindTaggedParent(hit.collider.gameObject, "Item");
             bool isItem   = itemObj != null;
-            bool isCarton = hit.collider.CompareTag("Carton");
+            bool isCarton = hit.collider.CompareTag("Carton") || hit.collider.CompareTag("Movable");
             DoorController door = hit.collider.GetComponent<DoorController>()
                                ?? hit.collider.GetComponentInParent<DoorController>();
             SecurityTVController tv = hit.collider.GetComponent<SecurityTVController>()

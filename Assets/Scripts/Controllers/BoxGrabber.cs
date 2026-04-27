@@ -53,10 +53,11 @@ public class BoxGrabber : MonoBehaviour
     {
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
         if (!Physics.Raycast(ray, out RaycastHit hit, grabDistance)) return;
-        if (!hit.collider.CompareTag("Carton")) return;
+        bool isGrabbable = hit.collider.CompareTag("Carton") || hit.collider.CompareTag("Movable");
+        if (!isGrabbable) return;
 
         Rigidbody rb = hit.collider.GetComponent<Rigidbody>();
-        if (rb == null) return;
+        if (rb == null || rb.isKinematic) return;
 
         _held           = rb;
         _hadGravity     = rb.useGravity;
