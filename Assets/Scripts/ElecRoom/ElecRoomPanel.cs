@@ -7,9 +7,9 @@ public class ElecRoomPanel : MonoBehaviour
 {
     [Header("Dialogue - entree dans la salle electrique")]
     public DialogueLine[] knobDialogue;
-    [Header("Dialogue - courant remis")]
+    [Header("Dialogue - courant remis (joue quand TOUS les panneaux sont actives)")]
     public DialogueLine[] powerRestoredDialogue;
-    
+
     [Range(0f, 1f)]
     public float dialogueVolume    = 1f;
     public float dialogueDelay     = 0.5f;
@@ -20,21 +20,34 @@ public class ElecRoomPanel : MonoBehaviour
     [Header("Porte")]
     [Tooltip("Le trou de vis a viser avec E - doit avoir un Collider")]
     public Transform screwHoleTransform;
-    [Tooltip("La porte a faire tomber - doit avoir un Rigidbody kinematic + Collider")]
+    [Tooltip("La porte a animer quand elle s'ouvre")]
     public Transform doorTransform;
     [Tooltip("Item requis pour demonter la porte")]
     public GameObject requiredItem;
     public AudioClip sonChute;
+    [Tooltip("Axe local sur lequel la porte se penche")]
+    public RotationAxis doorFallAxis = RotationAxis.X;
+    [Tooltip("Angle de chute en degres (ex: 90 = completement a plat)")]
+    public float doorFallAngle = 85f;
+    [Tooltip("Duree de l'animation en secondes")]
+    public float doorFallDuration = 0.6f;
+    [Tooltip("Son joue quand le joueur appuie sur E sans avoir l'item requis")]
+    public AudioClip sonLocked;
+    [Tooltip("Sous-titre affiche en bas ecran quand la porte est verrouillee (style DIALOGUE)")]
+    [TextArea(1, 3)]
+    public string sonLockedSubtitle;
 
     [Header("Knob")]
     [Tooltip("Le knob a faire pivoter - doit avoir un Collider")]
     public Transform knobTransform;
-    [Tooltip("Axe de rotation du knob - verifie dans l'Inspector du modele")]
+    [Tooltip("Axe de rotation du knob")]
     public RotationAxis knobAxis = RotationAxis.Y;
-    [Tooltip("Angle cible a atteindre (l'angle de depart est lu automatiquement depuis la scene)")]
+    [Tooltip("Angle cible a atteindre")]
     public float targetAngle = 80f;
     [Tooltip("Sensibilite souris - degres par unite Mouse Y")]
     public float mouseSensitivity = 120f;
+    [Tooltip("Son joue quand le knob atteint sa position finale")]
+    public AudioClip sonKnobActivated;
 
     public enum RotationAxis { X, Y, Z }
 
@@ -43,25 +56,36 @@ public class ElecRoomPanel : MonoBehaviour
     public Color highlightColor = new Color(1f, 0.85f, 0f);
     public Camera playerCamera;
 
-    // --- etat ---
-    private bool _doorOpen;
-    private bool _knobActivated;
-    private bool _isDragging;
-    private bool _dialoguePlayed;
+    // --- compteurs statiques : partagés entre toutes les instances ---
+    private static int s_totalPanels    = 0;
+    private static int s_activatedCount = 0;
 
-    // --- highlight porte ---
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics()
+    {
+        s_totalPanels    = 0;
+        s_activatedCount = 0;
+    }
+
+    // --- etat porte ---
+    private bool _doorOpen;
     private bool _doorHighlighted;
     private Renderer[] _doorRenderers;
     private Color[] _doorEmissions;
     private bool[] _doorKeywords;
 
-    // --- highlight knob ---
+    // --- etat knob ---
+    private bool _knobActivated;
+    private bool _isDragging;
     private float _startAngle;
     private float _currentAngle;
     private bool _knobHighlighted;
     private Renderer[] _knobRenderers;
     private Color[] _knobEmissions;
     private bool[] _knobKeywords;
+
+    // --- dialogue ---
+    private bool _dialoguePlayed;
 
     // --- UI ---
     private TextMeshProUGUI _promptText;
@@ -70,7 +94,6 @@ public class ElecRoomPanel : MonoBehaviour
     private GameObject _notifPanel;
     private Coroutine _notifCoroutine;
 
-    // --- Dialogue UI ---
     private AudioSource     _dialogueSource;
     private TextMeshProUGUI _subtitleText;
     private Image           _subtitleBg;
@@ -80,6 +103,8 @@ public class ElecRoomPanel : MonoBehaviour
 
     void Start()
     {
+        s_totalPanels++;
+
         if (playerCamera == null) playerCamera = Camera.main;
         _fpc = FindObjectOfType<FirstPersonController>();
 
@@ -87,20 +112,6 @@ public class ElecRoomPanel : MonoBehaviour
         _dialogueSource.spatialBlend = 0f;
         _dialogueSource.volume       = dialogueVolume;
 
-        // Auto-setup dialogue if not assigned in Inspector
-        if (knobDialogue == null || knobDialogue.Length == 0)
-        {
-            AudioClip clip = Resources.Load<AudioClip>("chercher_les_clefs");
-            knobDialogue = new DialogueLine[]
-            {
-                new DialogueLine
-                {
-                    clip     = clip,
-                    subtitle = "Oh, evidemment, j'ai oublie les cles dans la salle des cameras, je dois aller les chercher."
-                }
-            };
-        }
-        
         if (powerRestoredDialogue == null || powerRestoredDialogue.Length == 0)
         {
             AudioClip clip = Resources.Load<AudioClip>("courant_remis");
@@ -118,9 +129,13 @@ public class ElecRoomPanel : MonoBehaviour
         BuildUI();
     }
 
+    void OnDestroy()
+    {
+        s_totalPanels = Mathf.Max(0, s_totalPanels - 1);
+    }
+
     void Update()
     {
-        // Dialogue de proximite : se declenche quand le joueur entre dans la salle apres la coupure
         if (!_dialoguePlayed && PowerCutTrigger.PowerIsCut && playerCamera != null)
         {
             float dist = Vector3.Distance(playerCamera.transform.position, transform.position);
@@ -128,7 +143,7 @@ public class ElecRoomPanel : MonoBehaviour
             {
                 _dialoguePlayed = true;
                 if (_dialogueCoroutine != null) StopCoroutine(_dialogueCoroutine);
-                _dialogueCoroutine = StartCoroutine(PlayKnobDialogue());
+                _dialogueCoroutine = StartCoroutine(PlaySpecificDialogue(knobDialogue));
             }
         }
 
@@ -157,7 +172,16 @@ public class ElecRoomPanel : MonoBehaviour
 
             if (Input.GetKeyDown(KeyCode.E))
             {
-                if (locked) ShowNotif($"Il vous faut : {requiredItem.name}");
+                if (locked)
+                {
+                    ShowNotif($"Il vous faut : {requiredItem.name}");
+                    if (sonLocked != null || !string.IsNullOrEmpty(sonLockedSubtitle))
+                    {
+                        var line = new DialogueLine { clip = sonLocked, subtitle = sonLockedSubtitle };
+                        if (_dialogueCoroutine != null) StopCoroutine(_dialogueCoroutine);
+                        _dialogueCoroutine = StartCoroutine(PlaySpecificDialogue(new[] { line }));
+                    }
+                }
                 else        OpenDoor();
             }
         }
@@ -175,17 +199,32 @@ public class ElecRoomPanel : MonoBehaviour
 
         if (doorTransform == null) return;
 
-        Rigidbody rb = doorTransform.GetComponent<Rigidbody>();
-        if (rb == null)
-        {
-            Debug.LogWarning("[ElecRoomPanel] Aucun Rigidbody sur la porte - ajoute un Rigidbody kinematic dessus dans l'Inspector.", doorTransform);
-            rb = doorTransform.gameObject.AddComponent<Rigidbody>();
-        }
-        rb.isKinematic = false;
-        rb.useGravity  = true;
-
         if (sonChute != null)
             AudioSource.PlayClipAtPoint(sonChute, doorTransform.position);
+
+        StartCoroutine(TiltDoor());
+    }
+
+    private IEnumerator TiltDoor()
+    {
+        Quaternion startRot = doorTransform.localRotation;
+        Vector3 axis = doorFallAxis switch
+        {
+            RotationAxis.Y => Vector3.up,
+            RotationAxis.Z => Vector3.forward,
+            _              => Vector3.right,
+        };
+        Quaternion endRot = startRot * Quaternion.AngleAxis(doorFallAngle, axis);
+
+        float elapsed = 0f;
+        while (elapsed < doorFallDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, elapsed / doorFallDuration);
+            doorTransform.localRotation = Quaternion.Slerp(startRot, endRot, t);
+            yield return null;
+        }
+        doorTransform.localRotation = endRot;
     }
 
     // ─── KNOB ─────────────────────────────────────────────────────────────────
@@ -217,8 +256,13 @@ public class ElecRoomPanel : MonoBehaviour
 
         if (_isDragging)
         {
-            float delta = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
-            _currentAngle = Mathf.Clamp(_currentAngle + delta, _startAngle, targetAngle);
+            // Inverse le delta si targetAngle est inferieur au point de depart (ex: -80)
+            float rawDelta = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+            float delta    = targetAngle >= _startAngle ? rawDelta : -rawDelta;
+
+            float min = Mathf.Min(_startAngle, targetAngle);
+            float max = Mathf.Max(_startAngle, targetAngle);
+            _currentAngle = Mathf.Clamp(_currentAngle + delta, min, max);
 
             Vector3 e = knobTransform.localEulerAngles;
             switch (knobAxis)
@@ -229,7 +273,12 @@ public class ElecRoomPanel : MonoBehaviour
             }
             knobTransform.localEulerAngles = e;
 
-            if (_currentAngle >= targetAngle)
+            // Verifie l'atteinte de l'angle cible dans les deux sens
+            bool reached = targetAngle >= _startAngle
+                ? _currentAngle >= targetAngle
+                : _currentAngle <= targetAngle;
+
+            if (reached)
             {
                 _knobActivated = true;
                 _isDragging    = false;
@@ -243,18 +292,21 @@ public class ElecRoomPanel : MonoBehaviour
 
     private void OnKnobActivated()
     {
-        Debug.Log("[ElecRoomPanel] Knob en position - panneau active !");
-        
-        if (_dialogueCoroutine != null) StopCoroutine(_dialogueCoroutine);
-        _dialogueCoroutine = StartCoroutine(PlaySpecificDialogue(powerRestoredDialogue));
+        s_activatedCount++;
+        Debug.Log($"[ElecRoomPanel] Knob active ({s_activatedCount}/{s_totalPanels})");
+
+        if (sonKnobActivated != null)
+            AudioSource.PlayClipAtPoint(sonKnobActivated, knobTransform.position);
+
+        // Le son joue uniquement quand TOUS les panneaux sont actives
+        if (s_activatedCount >= s_totalPanels)
+        {
+            if (_dialogueCoroutine != null) StopCoroutine(_dialogueCoroutine);
+            _dialogueCoroutine = StartCoroutine(PlaySpecificDialogue(powerRestoredDialogue));
+        }
     }
 
-    // --- Dialogue ---
-
-    private IEnumerator PlayKnobDialogue()
-    {
-        yield return StartCoroutine(PlaySpecificDialogue(knobDialogue));
-    }
+    // ─── DIALOGUE ─────────────────────────────────────────────────────────────
 
     private IEnumerator PlaySpecificDialogue(DialogueLine[] dialogueLines)
     {
@@ -278,7 +330,6 @@ public class ElecRoomPanel : MonoBehaviour
             }
 
             yield return new WaitForSeconds(line.clip != null ? line.clip.length : 2f);
-            
             while (_dialogueSource.isPlaying) yield return null;
 
             yield return FadeSubtitle(1f, 0f, 0.18f);
@@ -313,10 +364,9 @@ public class ElecRoomPanel : MonoBehaviour
     {
         if (target == null) return false;
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
-        RaycastHit[] hits = Physics.RaycastAll(ray, interactDistance);
+        RaycastHit[] hits = Physics.RaycastAll(ray, interactDistance, ~0, QueryTriggerInteraction.Collide);
         foreach (RaycastHit hit in hits)
         {
-            // Correspond si le hit est target, un enfant de target, ou un parent de target
             if (hit.transform == target
              || hit.transform.IsChildOf(target)
              || target.IsChildOf(hit.transform))
@@ -365,7 +415,6 @@ public class ElecRoomPanel : MonoBehaviour
                 Debug.LogError("[ElecRoomPanel] knobTransform n'a pas de Collider !", knobTransform);
             InitRenderers(knobTransform, out _knobRenderers, out _knobEmissions, out _knobKeywords);
 
-            // Lire la rotation actuelle de la scene comme point de depart
             Vector3 e = knobTransform.localEulerAngles;
             _currentAngle = knobAxis switch
             {
@@ -434,7 +483,6 @@ public class ElecRoomPanel : MonoBehaviour
                                   new Color(0.8f, 0.2f, 0.2f, 0.75f), out _notifText, 17);
         _notifPanel.SetActive(false);
 
-        // Sous-titres dialogue — style DIALOGUE (bas centre)
         BuildSubtitleUI(canvasObj.transform);
     }
 

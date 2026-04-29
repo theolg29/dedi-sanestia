@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using System.Collections;
 
 public class StaminaManager : MonoBehaviour
@@ -8,15 +9,15 @@ public class StaminaManager : MonoBehaviour
 
     [Header("Stamina Settings")]
     public float maxStamina = 100f;
-    public float drainRate  = 25f;   // 100 / 25 = 4 seconds of sprint
+    public float drainRate  = 25f;
     public float regenRate  = 15f;
 
     [Header("Exhaustion")]
-    public float exhaustionThreshold = 0.2f; // Must regen to 20% before sprinting again
+    public float exhaustionThreshold = 0.2f;
 
     [Header("Barre de stamina (taille)")]
-    public float barWidth  = 200f;
-    public float barHeight = 10f;
+    public float barWidth  = 220f;
+    public float barHeight = 16f;
 
     [Header("Fade")]
     public float fadeOutDuration = 2f;
@@ -27,34 +28,38 @@ public class StaminaManager : MonoBehaviour
     private float currentStamina;
     private bool  isExhausted = false;
 
-    // Programmatic UI
-    private Canvas      staminaCanvas;
-    private CanvasGroup staminaCanvasGroup;
-    private Image       staminaBarFill;
+    private Canvas        staminaCanvas;
+    private CanvasGroup   staminaCanvasGroup;
+    private Image         staminaBarFill;
+    private RectTransform staminaFillRect;
 
-    private bool  wasSprinting    = false;
+    private bool      wasSprinting = false;
     private Coroutine fadeCoroutine;
+    private Rigidbody playerRb;
 
     void Awake() => instance = this;
 
     void Start()
     {
         currentStamina = maxStamina;
-        CreateStaminaBar();
 
-        // Disable built-in sprint bar on FirstPersonController if present
         FirstPersonController fpc = FindFirstObjectByType<FirstPersonController>();
         if (fpc != null)
         {
             fpc.useSprintBar = false;
             if (fpc.sprintBarBG != null) fpc.sprintBarBG.gameObject.SetActive(false);
             if (fpc.sprintBar   != null) fpc.sprintBar.gameObject.SetActive(false);
+            playerRb = fpc.GetComponent<Rigidbody>();
         }
+
+        CreateStaminaBar();
     }
 
     private void CreateStaminaBar()
     {
-        // Root canvas
+        float panelW = barWidth + 20f;
+        float panelH = 52f;
+
         GameObject canvasObj = new GameObject("StaminaBar_Canvas");
         staminaCanvas = canvasObj.AddComponent<Canvas>();
         staminaCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
@@ -62,45 +67,69 @@ public class StaminaManager : MonoBehaviour
         canvasObj.AddComponent<CanvasScaler>();
 
         staminaCanvasGroup                = canvasObj.AddComponent<CanvasGroup>();
-        staminaCanvasGroup.alpha          = 0f; // Starts invisible
+        staminaCanvasGroup.alpha          = 0f;
         staminaCanvasGroup.blocksRaycasts = false;
         staminaCanvasGroup.interactable   = false;
 
-        // Background (dark semi-transparent)
-        GameObject bgObj = new GameObject("StaminaBar_BG");
-        bgObj.transform.SetParent(canvasObj.transform, false);
-        Image bgImage      = bgObj.AddComponent<Image>();
-        bgImage.color        = new Color(0f, 0f, 0f, 0.5f);
-        bgImage.raycastTarget = false;
+        // Panel conteneur
+        GameObject panelObj    = new GameObject("StaminaBar_Panel");
+        panelObj.transform.SetParent(canvasObj.transform, false);
+        Image panelImg          = panelObj.AddComponent<Image>();
+        panelImg.color          = new Color(0.04f, 0.04f, 0.04f, 0.78f);
+        panelImg.raycastTarget  = false;
+        RectTransform panelRect = panelObj.GetComponent<RectTransform>();
+        panelRect.anchorMin        = new Vector2(0.5f, 0f);
+        panelRect.anchorMax        = new Vector2(0.5f, 0f);
+        panelRect.pivot            = new Vector2(0.5f, 0f);
+        panelRect.anchoredPosition = new Vector2(0f, 20f);
+        panelRect.sizeDelta        = new Vector2(panelW, panelH);
 
+        // Label "SPRINT"
+        GameObject labelObj    = new GameObject("StaminaBar_Label");
+        labelObj.transform.SetParent(panelObj.transform, false);
+        TextMeshProUGUI label  = labelObj.AddComponent<TextMeshProUGUI>();
+        label.text             = "SPRINT";
+        label.fontSize         = 11f;
+        label.color            = new Color(0.85f, 0.85f, 0.85f, 1f);
+        label.fontStyle        = FontStyles.Bold;
+        label.raycastTarget    = false;
+        RectTransform labelRect = labelObj.GetComponent<RectTransform>();
+        labelRect.anchorMin        = new Vector2(0f, 1f);
+        labelRect.anchorMax        = new Vector2(0f, 1f);
+        labelRect.pivot            = new Vector2(0f, 1f);
+        labelRect.anchoredPosition = new Vector2(10f, -8f);
+        labelRect.sizeDelta        = new Vector2(barWidth, 16f);
+
+        // Fond de barre
+        GameObject bgObj   = new GameObject("StaminaBar_BG");
+        bgObj.transform.SetParent(panelObj.transform, false);
+        Image bgImg         = bgObj.AddComponent<Image>();
+        bgImg.color         = new Color(0.12f, 0.12f, 0.12f, 1f);
+        bgImg.raycastTarget = false;
         RectTransform bgRect = bgObj.GetComponent<RectTransform>();
-        bgRect.anchorMin        = new Vector2(0.5f, 0f);
-        bgRect.anchorMax        = new Vector2(0.5f, 0f);
-        bgRect.pivot            = new Vector2(0.5f, 0f);
-        bgRect.anchoredPosition = new Vector2(0f, 32f); // 32px from bottom
+        bgRect.anchorMin        = new Vector2(0f, 0f);
+        bgRect.anchorMax        = new Vector2(0f, 0f);
+        bgRect.pivot            = new Vector2(0f, 0f);
+        bgRect.anchoredPosition = new Vector2(10f, 8f);
         bgRect.sizeDelta        = new Vector2(barWidth, barHeight);
 
-        // Fill (cyan/blue tint)
-        GameObject fillObj = new GameObject("StaminaBar_Fill");
+        // Fill — taille mise a jour via sizeDelta (pas de sprite requis)
+        GameObject fillObj     = new GameObject("StaminaBar_Fill");
         fillObj.transform.SetParent(bgObj.transform, false);
         staminaBarFill              = fillObj.AddComponent<Image>();
-        staminaBarFill.color        = new Color(0.3f, 0.7f, 1f, 1f); // Light blue
+        staminaBarFill.color        = new Color(0.15f, 0.75f, 1f, 1f);
         staminaBarFill.raycastTarget = false;
-        staminaBarFill.type         = Image.Type.Filled;
-        staminaBarFill.fillMethod   = Image.FillMethod.Horizontal;
-        staminaBarFill.fillOrigin   = (int)Image.OriginHorizontal.Left;
-        staminaBarFill.fillAmount   = 1f;
-
-        RectTransform fillRect = fillObj.GetComponent<RectTransform>();
-        fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = Vector2.one;
-        fillRect.offsetMin = new Vector2(1f, 1f);   // 1px inner padding
-        fillRect.offsetMax = new Vector2(-1f, -1f);
+        staminaFillRect             = fillObj.GetComponent<RectTransform>();
+        staminaFillRect.anchorMin        = new Vector2(0f, 0f);
+        staminaFillRect.anchorMax        = new Vector2(0f, 0f);
+        staminaFillRect.pivot            = new Vector2(0f, 0f);
+        staminaFillRect.anchoredPosition = new Vector2(2f, 2f);
+        staminaFillRect.sizeDelta        = new Vector2(barWidth - 4f, barHeight - 4f);
     }
 
     void Update()
     {
-        // Exhaustion logic
+        // Exhaustion
         if (currentStamina <= 0f && !isExhausted)
         {
             isExhausted = true;
@@ -118,28 +147,44 @@ public class StaminaManager : MonoBehaviour
             canSprint = true;
         }
 
-        // Detect sprinting
-        bool moving = Input.GetAxis("Vertical") != 0 || Input.GetAxis("Horizontal") != 0;
+        // Detection du mouvement via le Rigidbody du FPC
+        bool moving;
+        if (playerRb != null)
+        {
+            Vector3 flatVel = new Vector3(playerRb.linearVelocity.x, 0f, playerRb.linearVelocity.z);
+            moving = flatVel.magnitude > 0.4f;
+        }
+        else
+        {
+            moving = Input.GetAxis("Vertical") != 0f || Input.GetAxis("Horizontal") != 0f;
+        }
+
         IsSprinting = Input.GetKey(KeyCode.LeftShift) && canSprint && moving;
 
-        // Drain or regen
+        // Drain ou regen
         currentStamina += (IsSprinting ? -drainRate : regenRate) * Time.deltaTime;
         currentStamina  = Mathf.Clamp(currentStamina, 0f, maxStamina);
 
-        // Update fill
-        if (staminaBarFill != null)
-            staminaBarFill.fillAmount = currentStamina / maxStamina;
+        // Mise a jour visuelle
+        if (staminaFillRect != null)
+        {
+            float ratio = currentStamina / maxStamina;
+            staminaFillRect.sizeDelta = new Vector2(Mathf.Max(0f, (barWidth - 4f) * ratio), barHeight - 4f);
 
-        // Visibility logic
+            // Bleu -> orange quand stamina est basse
+            staminaBarFill.color = ratio < 0.3f
+                ? Color.Lerp(new Color(1f, 0.35f, 0.1f, 1f), new Color(0.15f, 0.75f, 1f, 1f), ratio / 0.3f)
+                : new Color(0.15f, 0.75f, 1f, 1f);
+        }
+
+        // Visibilite (fade)
         if (IsSprinting && !wasSprinting)
         {
-            // Started sprinting — show instantly
             if (fadeCoroutine != null) StopCoroutine(fadeCoroutine);
             staminaCanvasGroup.alpha = 1f;
         }
         else if (!IsSprinting && wasSprinting)
         {
-            // Stopped sprinting — fade out over 2 seconds
             if (fadeCoroutine != null) StopCoroutine(fadeCoroutine);
             fadeCoroutine = StartCoroutine(FadeOut());
         }

@@ -41,10 +41,9 @@ public class DialogueTriggerSetup : EditorWindow
         {
             ItemPickupDialogue pickup = keyItem.GetComponent<ItemPickupDialogue>();
             if (pickup == null) pickup = keyItem.AddComponent<ItemPickupDialogue>();
-            pickup.lines = new DialogueLine[]
-            {
-                new DialogueLine { subtitle = "Allez, je dois partir tout de suite !", clip = Resources.Load<AudioClip>("je_dois_partir") }
-            };
+            pickup.clip     = Resources.Load<AudioClip>("je_dois_partir");
+            pickup.subtitle = "Allez, je dois partir tout de suite !";
+            pickup.delay    = 0f;
             Debug.Log("[Dialogue] Configuré la clé d'hélicoptère automatique !");
         }
         else

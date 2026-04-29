@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Rendering;
+using TMPro;
 using System.Collections;
 
 public class PlayerHealth : MonoBehaviour
@@ -14,8 +15,8 @@ public class PlayerHealth : MonoBehaviour
     public float fireCellSize       = 1f;
 
     [Header("Couleurs de la barre")]
-    public Color healthyColor = new Color(0.2f, 0.8f, 0.2f, 1f);
-    public Color damagedColor = new Color(0.8f, 0.2f, 0.1f, 1f);
+    public Color healthyColor = new Color(0.15f, 0.85f, 0.25f, 1f);
+    public Color damagedColor = new Color(0.95f, 0.15f, 0.1f,  1f);
 
     [Header("Camera Shake")]
     public float shakePositionIntensity = 0.08f;
@@ -23,29 +24,28 @@ public class PlayerHealth : MonoBehaviour
     public float shakeDuration          = 0.15f;
 
     [Header("Mort")]
-    public float collapseDuration  = 1.2f;
-    public float collapseAngle     = 80f;
+    public float collapseDuration   = 1.2f;
+    public float collapseAngle      = 80f;
     public float collapseDropHeight = 0.8f;
-    public float eyeCloseDelay     = 1.5f;
-    public float eyeCloseDuration  = 1.5f;
+    public float eyeCloseDelay      = 1.5f;
+    public float eyeCloseDuration   = 1.5f;
 
     [Header("Barre de vie (taille)")]
-    public float barWidth  = 200f;
-    public float barHeight = 10f;
+    public float barWidth  = 220f;
+    public float barHeight = 16f;
 
     private float currentHealth;
 
-    // Programmatic health bar
-    private Canvas    healthBarCanvas;
-    private Image     healthBarBG;
-    private Image     healthBarFill;
+    private Canvas        healthBarCanvas;
+    private Image         healthBarFill;
+    private RectTransform healthFillRect;
 
-    private Transform cameraTransform;
-    private float     shakeTimer             = 0f;
-    private float     currentShakeIntensity  = 0f;
-    private Vector3   originalCameraLocalPos;
+    private Transform  cameraTransform;
+    private float      shakeTimer            = 0f;
+    private float      currentShakeIntensity = 0f;
+    private Vector3    originalCameraLocalPos;
     private Quaternion originalCameraLocalRot;
-    private bool      isShaking             = false;
+    private bool       isShaking             = false;
 
     private bool isDead = false;
 
@@ -64,43 +64,69 @@ public class PlayerHealth : MonoBehaviour
 
     private void CreateHealthBar()
     {
-        // Root canvas — not parented to player so death sequence doesn't disable it
+        float panelW = barWidth + 20f;
+        float panelH = 52f;
+
         GameObject canvasObj = new GameObject("HealthBar_Canvas");
         healthBarCanvas = canvasObj.AddComponent<Canvas>();
         healthBarCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
         healthBarCanvas.sortingOrder = 100;
         canvasObj.AddComponent<CanvasScaler>();
 
-        // Background (dark semi-transparent)
-        GameObject bgObj = new GameObject("HealthBar_BG");
-        bgObj.transform.SetParent(canvasObj.transform, false);
-        healthBarBG              = bgObj.AddComponent<Image>();
-        healthBarBG.color        = new Color(0f, 0f, 0f, 0.5f);
-        healthBarBG.raycastTarget = false;
+        // Panel conteneur
+        GameObject panelObj   = new GameObject("HealthBar_Panel");
+        panelObj.transform.SetParent(canvasObj.transform, false);
+        Image panelImg         = panelObj.AddComponent<Image>();
+        panelImg.color         = new Color(0.04f, 0.04f, 0.04f, 0.78f);
+        panelImg.raycastTarget = false;
+        RectTransform panelRect = panelObj.GetComponent<RectTransform>();
+        panelRect.anchorMin        = new Vector2(0f, 1f);
+        panelRect.anchorMax        = new Vector2(0f, 1f);
+        panelRect.pivot            = new Vector2(0f, 1f);
+        panelRect.anchoredPosition = new Vector2(14f, -14f);
+        panelRect.sizeDelta        = new Vector2(panelW, panelH);
 
+        // Label "VIE"
+        GameObject labelObj    = new GameObject("HealthBar_Label");
+        labelObj.transform.SetParent(panelObj.transform, false);
+        TextMeshProUGUI label  = labelObj.AddComponent<TextMeshProUGUI>();
+        label.text             = "VIE";
+        label.fontSize         = 11f;
+        label.color            = new Color(0.85f, 0.85f, 0.85f, 1f);
+        label.fontStyle        = FontStyles.Bold;
+        label.raycastTarget    = false;
+        RectTransform labelRect = labelObj.GetComponent<RectTransform>();
+        labelRect.anchorMin        = new Vector2(0f, 1f);
+        labelRect.anchorMax        = new Vector2(0f, 1f);
+        labelRect.pivot            = new Vector2(0f, 1f);
+        labelRect.anchoredPosition = new Vector2(10f, -8f);
+        labelRect.sizeDelta        = new Vector2(barWidth, 16f);
+
+        // Fond de barre
+        GameObject bgObj   = new GameObject("HealthBar_BG");
+        bgObj.transform.SetParent(panelObj.transform, false);
+        Image bgImg         = bgObj.AddComponent<Image>();
+        bgImg.color         = new Color(0.12f, 0.12f, 0.12f, 1f);
+        bgImg.raycastTarget = false;
         RectTransform bgRect = bgObj.GetComponent<RectTransform>();
-        bgRect.anchorMin        = new Vector2(0f, 1f);
-        bgRect.anchorMax        = new Vector2(0f, 1f);
-        bgRect.pivot            = new Vector2(0f, 1f);
-        bgRect.anchoredPosition = new Vector2(16f, -16f);
+        bgRect.anchorMin        = new Vector2(0f, 0f);
+        bgRect.anchorMax        = new Vector2(0f, 0f);
+        bgRect.pivot            = new Vector2(0f, 0f);
+        bgRect.anchoredPosition = new Vector2(10f, 8f);
         bgRect.sizeDelta        = new Vector2(barWidth, barHeight);
 
-        // Fill (green → red)
-        GameObject fillObj = new GameObject("HealthBar_Fill");
+        // Fill — taille mise a jour via sizeDelta (pas de sprite requis)
+        GameObject fillObj     = new GameObject("HealthBar_Fill");
         fillObj.transform.SetParent(bgObj.transform, false);
         healthBarFill              = fillObj.AddComponent<Image>();
         healthBarFill.color        = healthyColor;
         healthBarFill.raycastTarget = false;
-        healthBarFill.type         = Image.Type.Filled;
-        healthBarFill.fillMethod   = Image.FillMethod.Horizontal;
-        healthBarFill.fillOrigin   = (int)Image.OriginHorizontal.Left;
-        healthBarFill.fillAmount   = 1f;
-
-        RectTransform fillRect = fillObj.GetComponent<RectTransform>();
-        fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = Vector2.one;
-        fillRect.offsetMin = new Vector2(1f, 1f);   // 1px inner padding
-        fillRect.offsetMax = new Vector2(-1f, -1f);
+        healthFillRect             = fillObj.GetComponent<RectTransform>();
+        healthFillRect.anchorMin        = new Vector2(0f, 0f);
+        healthFillRect.anchorMax        = new Vector2(0f, 0f);
+        healthFillRect.pivot            = new Vector2(0f, 0f);
+        healthFillRect.anchoredPosition = new Vector2(2f, 2f);
+        healthFillRect.sizeDelta        = new Vector2(barWidth - 4f, barHeight - 4f);
     }
 
     void Update()
@@ -169,9 +195,9 @@ public class PlayerHealth : MonoBehaviour
 
     private void UpdateHealthBar()
     {
-        if (healthBarFill == null) return;
+        if (healthFillRect == null) return;
         float ratio = currentHealth / maxHealth;
-        healthBarFill.fillAmount = ratio;
+        healthFillRect.sizeDelta = new Vector2(Mathf.Max(0f, (barWidth - 4f) * ratio), barHeight - 4f);
         healthBarFill.color      = Color.Lerp(damagedColor, healthyColor, ratio);
     }
 
