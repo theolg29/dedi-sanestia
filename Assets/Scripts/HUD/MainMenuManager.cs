@@ -1,134 +1,69 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
-using TMPro;
+using System.Collections;
 
 public class MainMenuManager : MonoBehaviour
 {
     [Header("Scene de jeu")]
     public string nomSceneJeu = "SceneDeGame";
 
-    [Header("Scene du menu")]
-    public string mainMenuSceneName = "MainMenu";
+    [Header("Fade")]
+    public float fadeDuration = 1f;
 
-    private Canvas menuCanvas;
+    private Image fadeOverlay;
 
     void Start()
     {
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible   = true;
         Time.timeScale   = 1f;
-        CreateMainMenu();
+
+        CreateFadeOverlay();
+    }
+
+    private void CreateFadeOverlay()
+    {
+        GameObject canvasObj = new GameObject("MainMenu_FadeCanvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 9999;
+        canvasObj.AddComponent<CanvasScaler>();
+
+        GameObject overlayObj = new GameObject("FadeOverlay");
+        overlayObj.transform.SetParent(canvasObj.transform, false);
+        fadeOverlay = overlayObj.AddComponent<Image>();
+        fadeOverlay.color = new Color(0f, 0f, 0f, 0f);
+        fadeOverlay.raycastTarget = false;
+        RectTransform r = overlayObj.GetComponent<RectTransform>();
+        r.anchorMin = Vector2.zero;
+        r.anchorMax = Vector2.one;
+        r.offsetMin = Vector2.zero;
+        r.offsetMax = Vector2.zero;
     }
 
     public void BoutonJouer()
     {
-        SceneManager.LoadScene(nomSceneJeu);
-    }
-
-    public void BoutonOptions()
-    {
-        Debug.Log("[MainMenu] Options - pas encore implemente");
+        StartCoroutine(FadeAndLoad());
     }
 
     public void BoutonQuitter()
     {
-        Debug.Log("[MainMenu] Quitter le jeu");
         Application.Quit();
     }
 
-    private void CreateMainMenu()
+    private IEnumerator FadeAndLoad()
     {
-        // Canvas
-        GameObject canvasObj = new GameObject("MainMenu_Canvas");
-        menuCanvas = canvasObj.AddComponent<Canvas>();
-        menuCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-        menuCanvas.sortingOrder = 1000;
-        CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
-        canvasObj.AddComponent<GraphicRaycaster>();
+        fadeOverlay.raycastTarget = true;
 
-        // Dark background
-        GameObject bgObj = new GameObject("MenuBG");
-        bgObj.transform.SetParent(canvasObj.transform, false);
-        Image bgImage = bgObj.AddComponent<Image>();
-        bgImage.color = new Color(0.05f, 0.05f, 0.08f, 1f);
-        RectTransform bgRect = bgObj.GetComponent<RectTransform>();
-        bgRect.anchorMin = Vector2.zero;
-        bgRect.anchorMax = Vector2.one;
-        bgRect.offsetMin = Vector2.zero;
-        bgRect.offsetMax = Vector2.zero;
+        float elapsed = 0f;
+        while (elapsed < fadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            fadeOverlay.color = new Color(0f, 0f, 0f, Mathf.Lerp(0f, 1f, elapsed / fadeDuration));
+            yield return null;
+        }
 
-        // Title
-        CreateLabel(canvasObj.transform, "SANESTIA", 72, new Vector2(0f, 200f), FontStyles.Bold);
-
-        // Subtitle
-        CreateLabel(canvasObj.transform, "Escape The Office", 28, new Vector2(0f, 140f), FontStyles.Italic);
-
-        // Buttons
-        CreateButton(canvasObj.transform, "Jouer",   new Vector2(0f, 20f),   BoutonJouer);
-        CreateButton(canvasObj.transform, "Options", new Vector2(0f, -50f),  BoutonOptions);
-        CreateButton(canvasObj.transform, "Quitter", new Vector2(0f, -120f), BoutonQuitter);
-    }
-
-    private void CreateLabel(Transform parent, string text, float size, Vector2 pos, FontStyles style)
-    {
-        GameObject obj = new GameObject("Label_" + text);
-        obj.transform.SetParent(parent, false);
-        TextMeshProUGUI tmp = obj.AddComponent<TextMeshProUGUI>();
-        tmp.text      = text;
-        tmp.fontSize  = size;
-        tmp.alignment = TextAlignmentOptions.Center;
-        tmp.color     = Color.white;
-        tmp.fontStyle = style;
-        RectTransform r = obj.GetComponent<RectTransform>();
-        r.anchorMin        = new Vector2(0.5f, 0.5f);
-        r.anchorMax        = new Vector2(0.5f, 0.5f);
-        r.pivot            = new Vector2(0.5f, 0.5f);
-        r.anchoredPosition = pos;
-        r.sizeDelta        = new Vector2(600f, 80f);
-    }
-
-    private void CreateButton(Transform parent, string label, Vector2 pos, UnityEngine.Events.UnityAction action)
-    {
-        GameObject btnObj = new GameObject("Btn_" + label);
-        btnObj.transform.SetParent(parent, false);
-        Image btnImg = btnObj.AddComponent<Image>();
-        btnImg.color = new Color(0.15f, 0.15f, 0.2f, 0.9f);
-        Button btn = btnObj.AddComponent<Button>();
-        ColorBlock cb = btn.colors;
-        cb.normalColor      = new Color(0.15f, 0.15f, 0.2f, 0.9f);
-        cb.highlightedColor = new Color(0.3f, 0.3f, 0.4f, 1f);
-        cb.pressedColor     = new Color(0.1f, 0.1f, 0.15f, 1f);
-        btn.colors = cb;
-
-        RectTransform br = btnObj.GetComponent<RectTransform>();
-        br.anchorMin        = new Vector2(0.5f, 0.5f);
-        br.anchorMax        = new Vector2(0.5f, 0.5f);
-        br.pivot            = new Vector2(0.5f, 0.5f);
-        br.anchoredPosition = pos;
-        br.sizeDelta        = new Vector2(300f, 55f);
-
-        GameObject textObj = new GameObject("Text");
-        textObj.transform.SetParent(btnObj.transform, false);
-        TextMeshProUGUI t = textObj.AddComponent<TextMeshProUGUI>();
-        t.text      = label;
-        t.fontSize  = 26;
-        t.alignment = TextAlignmentOptions.Center;
-        t.color     = Color.white;
-        RectTransform tr = textObj.GetComponent<RectTransform>();
-        tr.anchorMin = Vector2.zero;
-        tr.anchorMax = Vector2.one;
-        tr.offsetMin = Vector2.zero;
-        tr.offsetMax = Vector2.zero;
-
-        btn.onClick.AddListener(action);
-    }
-
-    void OnDestroy()
-    {
-        if (menuCanvas != null)
-            Destroy(menuCanvas.gameObject);
+        SceneManager.LoadScene(nomSceneJeu);
     }
 }
