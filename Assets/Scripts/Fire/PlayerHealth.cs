@@ -8,7 +8,7 @@ public class PlayerHealth : MonoBehaviour
     [Header("Vie")]
     public float maxHealth = 3f;
 
-    [Header("Dégâts du Feu")]
+    [Header("Degats du Feu")]
     public float fireDamageDistance = 2f;
     public float damagePerSecond    = 1f;
     public float fireCellSize       = 1f;
@@ -29,11 +29,16 @@ public class PlayerHealth : MonoBehaviour
     public float eyeCloseDelay     = 1.5f;
     public float eyeCloseDuration  = 1.5f;
 
-    [Header("Références (auto-détectées si vides)")]
-    public Slider healthBarSlider;
+    [Header("Barre de vie (taille)")]
+    public float barWidth  = 200f;
+    public float barHeight = 10f;
 
     private float currentHealth;
-    private Image fillImage;
+
+    // Programmatic health bar
+    private Canvas    healthBarCanvas;
+    private Image     healthBarBG;
+    private Image     healthBarFill;
 
     private Transform cameraTransform;
     private float     shakeTimer             = 0f;
@@ -47,47 +52,60 @@ public class PlayerHealth : MonoBehaviour
     void Start()
     {
         currentHealth = maxHealth;
-
-        if (healthBarSlider == null)
-        {
-            GameObject sliderObj = GameObject.Find("HealthBar");
-            if (sliderObj != null) healthBarSlider = sliderObj.GetComponent<Slider>();
-        }
-
-        if (healthBarSlider == null)
-        {
-            Debug.LogError("[PlayerHealth] Aucun Slider 'HealthBar' trouvé dans la scène.");
-            return;
-        }
-
-        healthBarSlider.minValue    = 0f;
-        healthBarSlider.maxValue    = maxHealth;
-        healthBarSlider.value       = currentHealth;
-        healthBarSlider.interactable = false;
-
-        Transform fillArea = healthBarSlider.transform.Find("Fill Area");
-        Transform fill     = fillArea?.Find("Fill");
-        fillImage = fill != null
-            ? fill.GetComponent<Image>()
-            : healthBarSlider.fillRect?.GetComponent<Image>();
-
-        if (fillImage == null)
-            Debug.LogWarning("[PlayerHealth] Image de remplissage (Fill) non trouvée sur le Slider.");
-        else
-            fillImage.color = healthyColor;
-
+        CreateHealthBar();
         UpdateHealthBar();
 
         Camera cam = GetComponent<Camera>() ?? GetComponentInChildren<Camera>() ?? Camera.main;
         if (cam != null)
             cameraTransform = cam.transform;
         else
-            Debug.LogWarning("[PlayerHealth] Aucune caméra trouvée pour le camera shake.");
+            Debug.LogWarning("[PlayerHealth] Aucune camera trouvee pour le camera shake.");
+    }
+
+    private void CreateHealthBar()
+    {
+        // Root canvas — not parented to player so death sequence doesn't disable it
+        GameObject canvasObj = new GameObject("HealthBar_Canvas");
+        healthBarCanvas = canvasObj.AddComponent<Canvas>();
+        healthBarCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
+        healthBarCanvas.sortingOrder = 100;
+        canvasObj.AddComponent<CanvasScaler>();
+
+        // Background (dark semi-transparent)
+        GameObject bgObj = new GameObject("HealthBar_BG");
+        bgObj.transform.SetParent(canvasObj.transform, false);
+        healthBarBG              = bgObj.AddComponent<Image>();
+        healthBarBG.color        = new Color(0f, 0f, 0f, 0.5f);
+        healthBarBG.raycastTarget = false;
+
+        RectTransform bgRect = bgObj.GetComponent<RectTransform>();
+        bgRect.anchorMin        = new Vector2(0f, 1f);
+        bgRect.anchorMax        = new Vector2(0f, 1f);
+        bgRect.pivot            = new Vector2(0f, 1f);
+        bgRect.anchoredPosition = new Vector2(16f, -16f);
+        bgRect.sizeDelta        = new Vector2(barWidth, barHeight);
+
+        // Fill (green → red)
+        GameObject fillObj = new GameObject("HealthBar_Fill");
+        fillObj.transform.SetParent(bgObj.transform, false);
+        healthBarFill              = fillObj.AddComponent<Image>();
+        healthBarFill.color        = healthyColor;
+        healthBarFill.raycastTarget = false;
+        healthBarFill.type         = Image.Type.Filled;
+        healthBarFill.fillMethod   = Image.FillMethod.Horizontal;
+        healthBarFill.fillOrigin   = (int)Image.OriginHorizontal.Left;
+        healthBarFill.fillAmount   = 1f;
+
+        RectTransform fillRect = fillObj.GetComponent<RectTransform>();
+        fillRect.anchorMin = Vector2.zero;
+        fillRect.anchorMax = Vector2.one;
+        fillRect.offsetMin = new Vector2(1f, 1f);   // 1px inner padding
+        fillRect.offsetMax = new Vector2(-1f, -1f);
     }
 
     void Update()
     {
-        if (healthBarSlider == null || isDead) return;
+        if (isDead) return;
 
         if (Fire_propagation.ActiveFireCount > 0)
         {
@@ -151,9 +169,10 @@ public class PlayerHealth : MonoBehaviour
 
     private void UpdateHealthBar()
     {
-        healthBarSlider.value = currentHealth;
-        if (fillImage != null)
-            fillImage.color = Color.Lerp(damagedColor, healthyColor, currentHealth / maxHealth);
+        if (healthBarFill == null) return;
+        float ratio = currentHealth / maxHealth;
+        healthBarFill.fillAmount = ratio;
+        healthBarFill.color      = Color.Lerp(damagedColor, healthyColor, ratio);
     }
 
     private void OnPlayerDeath()
@@ -266,5 +285,11 @@ public class PlayerHealth : MonoBehaviour
         currentHealth = Mathf.Max(currentHealth - amount, 0f);
         UpdateHealthBar();
         if (currentHealth <= 0f) OnPlayerDeath();
+    }
+
+    void OnDestroy()
+    {
+        if (healthBarCanvas != null)
+            Destroy(healthBarCanvas.gameObject);
     }
 }

@@ -3,73 +3,64 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
 
-public class MainMenuManager : MonoBehaviour
+public class EndSceneManager : MonoBehaviour
 {
-    [Header("Scene de jeu")]
-    public string nomSceneJeu = "SceneDeGame";
-
-    [Header("Scene du menu")]
+    [Header("Scene du menu principal")]
     public string mainMenuSceneName = "MainMenu";
 
-    private Canvas menuCanvas;
+    private Canvas endCanvas;
 
     void Start()
     {
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible   = true;
         Time.timeScale   = 1f;
-        CreateMainMenu();
+        CreateEndScreen();
     }
 
-    public void BoutonJouer()
+    public void BoutonMenuPrincipal()
     {
-        SceneManager.LoadScene(nomSceneJeu);
-    }
-
-    public void BoutonOptions()
-    {
-        Debug.Log("[MainMenu] Options - pas encore implemente");
+        SceneManager.LoadScene(mainMenuSceneName);
     }
 
     public void BoutonQuitter()
     {
-        Debug.Log("[MainMenu] Quitter le jeu");
+        Debug.Log("[EndScene] Quitter le jeu");
         Application.Quit();
     }
 
-    private void CreateMainMenu()
+    private void CreateEndScreen()
     {
         // Canvas
-        GameObject canvasObj = new GameObject("MainMenu_Canvas");
-        menuCanvas = canvasObj.AddComponent<Canvas>();
-        menuCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-        menuCanvas.sortingOrder = 1000;
+        GameObject canvasObj = new GameObject("EndScene_Canvas");
+        endCanvas = canvasObj.AddComponent<Canvas>();
+        endCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
+        endCanvas.sortingOrder = 1000;
         CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
         canvasObj.AddComponent<GraphicRaycaster>();
 
         // Dark background
-        GameObject bgObj = new GameObject("MenuBG");
+        GameObject bgObj = new GameObject("EndBG");
         bgObj.transform.SetParent(canvasObj.transform, false);
         Image bgImage = bgObj.AddComponent<Image>();
-        bgImage.color = new Color(0.05f, 0.05f, 0.08f, 1f);
+        bgImage.color = new Color(0.02f, 0.02f, 0.05f, 1f);
         RectTransform bgRect = bgObj.GetComponent<RectTransform>();
         bgRect.anchorMin = Vector2.zero;
         bgRect.anchorMax = Vector2.one;
         bgRect.offsetMin = Vector2.zero;
         bgRect.offsetMax = Vector2.zero;
 
-        // Title
-        CreateLabel(canvasObj.transform, "SANESTIA", 72, new Vector2(0f, 200f), FontStyles.Bold);
+        // Thanks text
+        CreateLabel(canvasObj.transform, "Merci d'avoir joue !", 56, new Vector2(0f, 100f), FontStyles.Bold);
 
         // Subtitle
-        CreateLabel(canvasObj.transform, "Escape The Office", 28, new Vector2(0f, 140f), FontStyles.Italic);
+        CreateLabel(canvasObj.transform, "Sanestia - Escape The Office", 28, new Vector2(0f, 30f), FontStyles.Italic);
 
         // Buttons
-        CreateButton(canvasObj.transform, "Jouer",   new Vector2(0f, 20f),   BoutonJouer);
-        CreateButton(canvasObj.transform, "Options", new Vector2(0f, -50f),  BoutonOptions);
-        CreateButton(canvasObj.transform, "Quitter", new Vector2(0f, -120f), BoutonQuitter);
+        CreateButton(canvasObj.transform, "Menu Principal", new Vector2(0f, -80f), BoutonMenuPrincipal);
+        CreateButton(canvasObj.transform, "Quitter", new Vector2(0f, -150f), BoutonQuitter);
     }
 
     private void CreateLabel(Transform parent, string text, float size, Vector2 pos, FontStyles style)
@@ -87,7 +78,7 @@ public class MainMenuManager : MonoBehaviour
         r.anchorMax        = new Vector2(0.5f, 0.5f);
         r.pivot            = new Vector2(0.5f, 0.5f);
         r.anchoredPosition = pos;
-        r.sizeDelta        = new Vector2(600f, 80f);
+        r.sizeDelta        = new Vector2(800f, 80f);
     }
 
     private void CreateButton(Transform parent, string label, Vector2 pos, UnityEngine.Events.UnityAction action)
@@ -128,7 +119,7 @@ public class MainMenuManager : MonoBehaviour
 
     void OnDestroy()
     {
-        if (menuCanvas != null)
-            Destroy(menuCanvas.gameObject);
+        if (endCanvas != null)
+            Destroy(endCanvas.gameObject);
     }
 }
