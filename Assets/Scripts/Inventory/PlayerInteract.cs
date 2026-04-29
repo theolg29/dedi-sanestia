@@ -187,7 +187,10 @@ public class PlayerInteract : MonoBehaviour
         Canvas canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 201;
-        canvasObj.AddComponent<CanvasScaler>();
+        CanvasScaler cs = canvasObj.AddComponent<CanvasScaler>();
+        cs.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        cs.referenceResolution = new Vector2(1280, 720);
+        cs.matchWidthOrHeight  = 0.5f;
 
         GameObject panel = new GameObject("NotifPanel");
         panel.transform.SetParent(canvasObj.transform, false);
@@ -235,7 +238,10 @@ public class PlayerInteract : MonoBehaviour
         Canvas canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 200;
-        canvasObj.AddComponent<CanvasScaler>();
+        CanvasScaler cs = canvasObj.AddComponent<CanvasScaler>();
+        cs.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        cs.referenceResolution = new Vector2(1280, 720);
+        cs.matchWidthOrHeight  = 0.5f;
 
         GameObject panel = new GameObject("PromptPanel");
         panel.transform.SetParent(canvasObj.transform, false);

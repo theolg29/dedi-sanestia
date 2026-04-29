@@ -64,7 +64,10 @@ public class StaminaManager : MonoBehaviour
         staminaCanvas = canvasObj.AddComponent<Canvas>();
         staminaCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
         staminaCanvas.sortingOrder = 100;
-        canvasObj.AddComponent<CanvasScaler>();
+        CanvasScaler staminaScaler = canvasObj.AddComponent<CanvasScaler>();
+        staminaScaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        staminaScaler.referenceResolution = new Vector2(1280, 720);
+        staminaScaler.matchWidthOrHeight  = 0.5f;
 
         staminaCanvasGroup                = canvasObj.AddComponent<CanvasGroup>();
         staminaCanvasGroup.alpha          = 0f;

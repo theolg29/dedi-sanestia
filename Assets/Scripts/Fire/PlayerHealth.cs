@@ -71,7 +71,10 @@ public class PlayerHealth : MonoBehaviour
         healthBarCanvas = canvasObj.AddComponent<Canvas>();
         healthBarCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
         healthBarCanvas.sortingOrder = 100;
-        canvasObj.AddComponent<CanvasScaler>();
+        CanvasScaler healthScaler = canvasObj.AddComponent<CanvasScaler>();
+        healthScaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        healthScaler.referenceResolution = new Vector2(1280, 720);
+        healthScaler.matchWidthOrHeight  = 0.5f;
 
         // Panel conteneur
         GameObject panelObj   = new GameObject("HealthBar_Panel");

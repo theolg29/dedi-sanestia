@@ -108,7 +108,10 @@ public class DialogueManager : MonoBehaviour
         Canvas canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 203; // Ordre spécifié dans TEXT_STYLES
-        canvasObj.AddComponent<CanvasScaler>();
+        CanvasScaler cs = canvasObj.AddComponent<CanvasScaler>();
+        cs.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        cs.referenceResolution = new Vector2(1280, 720);
+        cs.matchWidthOrHeight  = 0.5f;
 
         // Background
         GameObject bgObj = new GameObject("SubtitleBg");

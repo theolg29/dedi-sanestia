@@ -59,7 +59,10 @@ public class FireProximityVision : MonoBehaviour
         overlayCanvas = canvasObj.AddComponent<Canvas>();
         overlayCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
         overlayCanvas.sortingOrder = 900;
-        canvasObj.AddComponent<CanvasScaler>();
+        CanvasScaler cs = canvasObj.AddComponent<CanvasScaler>();
+        cs.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        cs.referenceResolution = new Vector2(1280, 720);
+        cs.matchWidthOrHeight  = 0.5f;
 
         GameObject imgObj = new GameObject("FireVision_Overlay");
         imgObj.transform.SetParent(canvasObj.transform, false);

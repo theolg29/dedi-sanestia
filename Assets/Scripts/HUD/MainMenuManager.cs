@@ -8,8 +8,12 @@ public class MainMenuManager : MonoBehaviour
     [Header("Scene de jeu")]
     public string nomSceneJeu = "SceneDeGame";
 
-    [Header("Fade")]
-    public float fadeDuration = 1f;
+    [Header("Fade entree")]
+    public float fadeInDuration  = 1.5f;
+    public float fadeInDelay     = 0.2f;
+
+    [Header("Fade sortie (Jouer)")]
+    public float fadeOutDuration = 1f;
 
     private Image fadeOverlay;
 
@@ -20,6 +24,7 @@ public class MainMenuManager : MonoBehaviour
         Time.timeScale   = 1f;
 
         CreateFadeOverlay();
+        StartCoroutine(FadeIn());
     }
 
     private void CreateFadeOverlay()
@@ -33,13 +38,30 @@ public class MainMenuManager : MonoBehaviour
         GameObject overlayObj = new GameObject("FadeOverlay");
         overlayObj.transform.SetParent(canvasObj.transform, false);
         fadeOverlay = overlayObj.AddComponent<Image>();
-        fadeOverlay.color = new Color(0f, 0f, 0f, 0f);
-        fadeOverlay.raycastTarget = false;
+        fadeOverlay.color = Color.black;
+        fadeOverlay.raycastTarget = true;
         RectTransform r = overlayObj.GetComponent<RectTransform>();
         r.anchorMin = Vector2.zero;
         r.anchorMax = Vector2.one;
         r.offsetMin = Vector2.zero;
         r.offsetMax = Vector2.zero;
+    }
+
+    private IEnumerator FadeIn()
+    {
+        if (fadeInDelay > 0f) yield return new WaitForSeconds(fadeInDelay);
+
+        float elapsed = 0f;
+        while (elapsed < fadeInDuration)
+        {
+            elapsed += Time.deltaTime;
+            fadeOverlay.color = new Color(0f, 0f, 0f, Mathf.Lerp(1f, 0f, elapsed / fadeInDuration));
+            yield return null;
+        }
+
+        fadeOverlay.color         = new Color(0f, 0f, 0f, 0f);
+        fadeOverlay.raycastTarget = false;
+        fadeOverlay.enabled       = false;
     }
 
     public void BoutonJouer()
@@ -54,13 +76,15 @@ public class MainMenuManager : MonoBehaviour
 
     private IEnumerator FadeAndLoad()
     {
+        fadeOverlay.enabled       = true;
+        fadeOverlay.color         = new Color(0f, 0f, 0f, 0f);
         fadeOverlay.raycastTarget = true;
 
         float elapsed = 0f;
-        while (elapsed < fadeDuration)
+        while (elapsed < fadeOutDuration)
         {
             elapsed += Time.deltaTime;
-            fadeOverlay.color = new Color(0f, 0f, 0f, Mathf.Lerp(0f, 1f, elapsed / fadeDuration));
+            fadeOverlay.color = new Color(0f, 0f, 0f, Mathf.Lerp(0f, 1f, elapsed / fadeOutDuration));
             yield return null;
         }
 

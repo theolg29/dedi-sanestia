@@ -72,7 +72,7 @@ public class PauseMenuManager : MonoBehaviour
         pauseCanvas.sortingOrder = 5000;
         CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.referenceResolution = new Vector2(1280, 720);
         canvasObj.AddComponent<GraphicRaycaster>();
 
         pauseCanvasGroup                = canvasObj.AddComponent<CanvasGroup>();

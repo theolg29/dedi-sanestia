@@ -248,7 +248,10 @@ public class WakeUpCinematic : MonoBehaviour
         Canvas canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 9999;
-        canvasObj.AddComponent<CanvasScaler>();
+        CanvasScaler cs = canvasObj.AddComponent<CanvasScaler>();
+        cs.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        cs.referenceResolution = new Vector2(1280, 720);
+        cs.matchWidthOrHeight  = 0.5f;
 
         _blackOverlay = CreateFullscreenImage(canvasObj.transform, "BlackOverlay", Color.black);
         _flashOverlay = CreateFullscreenImage(canvasObj.transform, "FlashOverlay", Color.clear);

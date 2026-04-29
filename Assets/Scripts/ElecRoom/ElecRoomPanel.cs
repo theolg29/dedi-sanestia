@@ -473,7 +473,10 @@ public class ElecRoomPanel : MonoBehaviour
         Canvas canvas        = canvasObj.AddComponent<Canvas>();
         canvas.renderMode    = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder  = 202;
-        canvasObj.AddComponent<CanvasScaler>();
+        CanvasScaler cs = canvasObj.AddComponent<CanvasScaler>();
+        cs.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        cs.referenceResolution = new Vector2(1280, 720);
+        cs.matchWidthOrHeight  = 0.5f;
 
         _promptPanel = BuildPanel(canvasObj.transform, new Vector2(0f, -90f), new Vector2(280f, 40f),
                                   new Color(0f, 0f, 0f, 0.55f), out _promptText, 20);

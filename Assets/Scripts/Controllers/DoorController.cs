@@ -181,7 +181,10 @@ public class DoorController : MonoBehaviour
         Canvas canvas       = canvasObj.AddComponent<Canvas>();
         canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = SUBTITLE_SORT_ORDER;
-        canvasObj.AddComponent<CanvasScaler>();
+        CanvasScaler cs = canvasObj.AddComponent<CanvasScaler>();
+        cs.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        cs.referenceResolution = new Vector2(1280, 720);
+        cs.matchWidthOrHeight  = 0.5f;
 
         // Fond — ancres (0.2, 0.04) → (0.8, 0.10)
         GameObject bgObj = new GameObject("SubtitleBg");
