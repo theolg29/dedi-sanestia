@@ -25,6 +25,8 @@ public class PowerCutTrigger : MonoBehaviour
     public string objectiveMessage  = "OBJECTIF - Dirigez-vous vers la salle électrique";
     public float  objectiveDuration = 4f;
 
+    public static bool PowerIsCut { get; private set; }
+
     private bool _triggered = false;
 
     private AudioSource     _dialogueSource;
@@ -45,6 +47,7 @@ public class PowerCutTrigger : MonoBehaviour
     {
         if (_triggered || !other.CompareTag("Player")) return;
         _triggered = true;
+        PowerIsCut = true;
 
         if (sonCoupure != null)
             AudioSource.PlayClipAtPoint(sonCoupure, transform.position, volume);

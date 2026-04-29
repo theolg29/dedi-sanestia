@@ -44,6 +44,12 @@ public class PlayerInventory : MonoBehaviour
         foreach (Collider col in item.GetComponentsInChildren<Collider>())
             col.enabled = false;
 
+        ItemPickupDialogue dialogue = item.GetComponent<ItemPickupDialogue>();
+        if (dialogue != null)
+        {
+            dialogue.PlayDialogue();
+        }
+
         item.transform.SetParent(playerHand, true);
         item.transform.localPosition = holdPosition;
         item.transform.localRotation = Quaternion.Euler(holdRotation);

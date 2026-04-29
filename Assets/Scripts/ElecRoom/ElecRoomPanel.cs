@@ -5,6 +5,18 @@ using UnityEngine.UI;
 
 public class ElecRoomPanel : MonoBehaviour
 {
+    [Header("Dialogue - entree dans la salle electrique")]
+    public DialogueLine[] knobDialogue;
+    [Header("Dialogue - courant remis")]
+    public DialogueLine[] powerRestoredDialogue;
+    
+    [Range(0f, 1f)]
+    public float dialogueVolume    = 1f;
+    public float dialogueDelay     = 0.5f;
+    public float pauseBetweenLines = 0.5f;
+    [Tooltip("Distance de declenchement du dialogue (quand le joueur s'approche du panneau)")]
+    public float dialogueTriggerDistance = 6f;
+
     [Header("Porte")]
     [Tooltip("Le trou de vis a viser avec E - doit avoir un Collider")]
     public Transform screwHoleTransform;
@@ -35,6 +47,7 @@ public class ElecRoomPanel : MonoBehaviour
     private bool _doorOpen;
     private bool _knobActivated;
     private bool _isDragging;
+    private bool _dialoguePlayed;
 
     // --- highlight porte ---
     private bool _doorHighlighted;
@@ -57,6 +70,12 @@ public class ElecRoomPanel : MonoBehaviour
     private GameObject _notifPanel;
     private Coroutine _notifCoroutine;
 
+    // --- Dialogue UI ---
+    private AudioSource     _dialogueSource;
+    private TextMeshProUGUI _subtitleText;
+    private Image           _subtitleBg;
+    private Coroutine       _dialogueCoroutine;
+
     private FirstPersonController _fpc;
 
     void Start()
@@ -64,12 +83,55 @@ public class ElecRoomPanel : MonoBehaviour
         if (playerCamera == null) playerCamera = Camera.main;
         _fpc = FindObjectOfType<FirstPersonController>();
 
+        _dialogueSource              = gameObject.AddComponent<AudioSource>();
+        _dialogueSource.spatialBlend = 0f;
+        _dialogueSource.volume       = dialogueVolume;
+
+        // Auto-setup dialogue if not assigned in Inspector
+        if (knobDialogue == null || knobDialogue.Length == 0)
+        {
+            AudioClip clip = Resources.Load<AudioClip>("chercher_les_clefs");
+            knobDialogue = new DialogueLine[]
+            {
+                new DialogueLine
+                {
+                    clip     = clip,
+                    subtitle = "Oh, evidemment, j'ai oublie les cles dans la salle des cameras, je dois aller les chercher."
+                }
+            };
+        }
+        
+        if (powerRestoredDialogue == null || powerRestoredDialogue.Length == 0)
+        {
+            AudioClip clip = Resources.Load<AudioClip>("courant_remis");
+            powerRestoredDialogue = new DialogueLine[]
+            {
+                new DialogueLine
+                {
+                    clip     = clip,
+                    subtitle = "Super, j'ai reactive le courant d'urgence !"
+                }
+            };
+        }
+
         ValidateAndInit();
         BuildUI();
     }
 
     void Update()
     {
+        // Dialogue de proximite : se declenche quand le joueur entre dans la salle apres la coupure
+        if (!_dialoguePlayed && PowerCutTrigger.PowerIsCut && playerCamera != null)
+        {
+            float dist = Vector3.Distance(playerCamera.transform.position, transform.position);
+            if (dist <= dialogueTriggerDistance)
+            {
+                _dialoguePlayed = true;
+                if (_dialogueCoroutine != null) StopCoroutine(_dialogueCoroutine);
+                _dialogueCoroutine = StartCoroutine(PlayKnobDialogue());
+            }
+        }
+
         if (!_doorOpen)
             HandleDoor();
         else if (!_knobActivated)
@@ -182,6 +244,67 @@ public class ElecRoomPanel : MonoBehaviour
     private void OnKnobActivated()
     {
         Debug.Log("[ElecRoomPanel] Knob en position - panneau active !");
+        
+        if (_dialogueCoroutine != null) StopCoroutine(_dialogueCoroutine);
+        _dialogueCoroutine = StartCoroutine(PlaySpecificDialogue(powerRestoredDialogue));
+    }
+
+    // --- Dialogue ---
+
+    private IEnumerator PlayKnobDialogue()
+    {
+        yield return StartCoroutine(PlaySpecificDialogue(knobDialogue));
+    }
+
+    private IEnumerator PlaySpecificDialogue(DialogueLine[] dialogueLines)
+    {
+        if (dialogueLines == null || dialogueLines.Length == 0) yield break;
+        yield return new WaitForSeconds(dialogueDelay);
+
+        for (int i = 0; i < dialogueLines.Length; i++)
+        {
+            DialogueLine line = dialogueLines[i];
+
+            if (line.clip != null)
+            {
+                _dialogueSource.clip = line.clip;
+                _dialogueSource.Play();
+            }
+
+            if (!string.IsNullOrEmpty(line.subtitle))
+            {
+                _subtitleText.text = line.subtitle;
+                yield return FadeSubtitle(0f, 1f, 0.18f);
+            }
+
+            yield return new WaitForSeconds(line.clip != null ? line.clip.length : 2f);
+            
+            while (_dialogueSource.isPlaying) yield return null;
+
+            yield return FadeSubtitle(1f, 0f, 0.18f);
+            _subtitleText.text = "";
+
+            if (i < dialogueLines.Length - 1)
+                yield return new WaitForSeconds(pauseBetweenLines);
+        }
+    }
+
+    private IEnumerator FadeSubtitle(float from, float to, float duration)
+    {
+        float t = 0f;
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            SetSubtitleAlpha(Mathf.Lerp(from, to, t / duration));
+            yield return null;
+        }
+        SetSubtitleAlpha(to);
+    }
+
+    private void SetSubtitleAlpha(float alpha)
+    {
+        Color tc = _subtitleText.color; tc.a = alpha;        _subtitleText.color = tc;
+        Color bc = _subtitleBg.color;   bc.a = alpha * 0.4f; _subtitleBg.color   = bc;
     }
 
     // ─── HELPERS ──────────────────────────────────────────────────────────────
@@ -310,6 +433,36 @@ public class ElecRoomPanel : MonoBehaviour
         _notifPanel  = BuildPanel(canvasObj.transform, new Vector2(0f, -155f), new Vector2(300f, 40f),
                                   new Color(0.8f, 0.2f, 0.2f, 0.75f), out _notifText, 17);
         _notifPanel.SetActive(false);
+
+        // Sous-titres dialogue — style DIALOGUE (bas centre)
+        BuildSubtitleUI(canvasObj.transform);
+    }
+
+    private void BuildSubtitleUI(Transform canvasParent)
+    {
+        GameObject bgObj = new GameObject("SubtitleBg");
+        bgObj.transform.SetParent(canvasParent, false);
+        _subtitleBg = bgObj.AddComponent<Image>();
+        _subtitleBg.color = new Color(0f, 0f, 0f, 0f);
+        RectTransform bgR = bgObj.GetComponent<RectTransform>();
+        bgR.anchorMin = new Vector2(0.2f, 0.04f);
+        bgR.anchorMax = new Vector2(0.8f, 0.10f);
+        bgR.offsetMin = Vector2.zero;
+        bgR.offsetMax = Vector2.zero;
+
+        GameObject textObj = new GameObject("SubtitleText");
+        textObj.transform.SetParent(bgObj.transform, false);
+        _subtitleText = textObj.AddComponent<TextMeshProUGUI>();
+        _subtitleText.fontSize         = 19;
+        _subtitleText.characterSpacing = 0.5f;
+        _subtitleText.alignment        = TextAlignmentOptions.Center;
+        _subtitleText.color            = new Color(1f, 1f, 1f, 0f);
+        _subtitleText.text             = "";
+        RectTransform tR = textObj.GetComponent<RectTransform>();
+        tR.anchorMin = Vector2.zero;
+        tR.anchorMax = Vector2.one;
+        tR.offsetMin = new Vector2(6f, 3f);
+        tR.offsetMax = new Vector2(-6f, -3f);
     }
 
     private GameObject BuildPanel(Transform parent, Vector2 pos, Vector2 size, Color bgColor,

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public class MinimapToggle : MonoBehaviour
 {
@@ -9,6 +10,9 @@ public class MinimapToggle : MonoBehaviour
     [Header("Taille agrandie")]
     public Vector2 expandedSize = new Vector2(500f, 500f);
     public float expandedZoom = 15f;
+
+    [Header("Bordure")]
+    public float borderWidth = 1f;
 
     private Vector2 smallSize;
     private Vector2 smallAnchoredPosition;
@@ -23,10 +27,24 @@ public class MinimapToggle : MonoBehaviour
     {
         if (minimapRect == null)
         {
-            Debug.LogError("[MinimapToggle] ❌ Minimap Rect non assigné dans l'Inspector !");
+            Debug.LogError("[MinimapToggle] Minimap Rect non assigne dans l'Inspector !");
             return;
         }
 
+        // Force minimap position: top-right, 16px padding
+        minimapRect.anchorMin        = new Vector2(1f, 1f);
+        minimapRect.anchorMax        = new Vector2(1f, 1f);
+        minimapRect.pivot            = new Vector2(1f, 1f);
+        minimapRect.anchoredPosition = new Vector2(-16f, -16f);
+
+        // Add black outline border (1px)
+        Outline outline = minimapRect.GetComponent<Outline>();
+        if (outline == null)
+            outline = minimapRect.gameObject.AddComponent<Outline>();
+        outline.effectColor    = Color.black;
+        outline.effectDistance = new Vector2(borderWidth, -borderWidth);
+
+        // Save small state
         smallSize             = minimapRect.sizeDelta;
         smallAnchoredPosition = minimapRect.anchoredPosition;
         smallAnchorMin        = minimapRect.anchorMin;

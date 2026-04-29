@@ -1,4 +1,4 @@
-﻿// CHANGE LOG
+// CHANGE LOG
 // 
 // CHANGES || version VERSION
 //
@@ -142,6 +142,9 @@ public class FirstPersonController : MonoBehaviour
         originalScale = transform.localScale;
         jointOriginalPos = joint.localPosition;
 
+        // Sprint speed = 1.5x walk speed (managed by StaminaManager)
+        sprintSpeed = walkSpeed * 1.5f;
+
         if (!unlimitedSprint)
         {
             sprintRemaining = sprintDuration;
@@ -172,8 +175,8 @@ public class FirstPersonController : MonoBehaviour
 
         if(useSprintBar)
         {
-            sprintBarBG.gameObject.SetActive(true);
-            sprintBar.gameObject.SetActive(true);
+            if (sprintBarBG != null) sprintBarBG.gameObject.SetActive(true);
+            if (sprintBar   != null) sprintBar.gameObject.SetActive(true);
 
             float screenWidth = Screen.width;
             float screenHeight = Screen.height;
@@ -181,18 +184,20 @@ public class FirstPersonController : MonoBehaviour
             sprintBarWidth = screenWidth * sprintBarWidthPercent;
             sprintBarHeight = screenHeight * sprintBarHeightPercent;
 
-            sprintBarBG.rectTransform.sizeDelta = new Vector3(sprintBarWidth, sprintBarHeight, 0f);
-            sprintBar.rectTransform.sizeDelta = new Vector3(sprintBarWidth - 2, sprintBarHeight - 2, 0f);
+            if (sprintBarBG != null)
+                sprintBarBG.rectTransform.sizeDelta = new Vector3(sprintBarWidth, sprintBarHeight, 0f);
+            if (sprintBar != null)
+                sprintBar.rectTransform.sizeDelta = new Vector3(sprintBarWidth - 2, sprintBarHeight - 2, 0f);
 
-            if(hideBarWhenFull)
+            if(hideBarWhenFull && sprintBarCG != null)
             {
                 sprintBarCG.alpha = 0;
             }
         }
         else
         {
-            sprintBarBG.gameObject.SetActive(false);
-            sprintBar.gameObject.SetActive(false);
+            if (sprintBarBG != null) sprintBarBG.gameObject.SetActive(false);
+            if (sprintBar   != null) sprintBar.gameObject.SetActive(false);
         }
 
         #endregion
@@ -280,44 +285,7 @@ public class FirstPersonController : MonoBehaviour
             {
                 isZoomed = false;
                 playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, sprintFOV, sprintFOVStepTime * Time.deltaTime);
-
-                // Drain sprint remaining while sprinting
-                if(!unlimitedSprint)
-                {
-                    sprintRemaining -= 1 * Time.deltaTime;
-                    if (sprintRemaining <= 0)
-                    {
-                        isSprinting = false;
-                        isSprintCooldown = true;
-                    }
-                }
-            }
-            else
-            {
-                // Regain sprint while not sprinting
-                sprintRemaining = Mathf.Clamp(sprintRemaining += 1 * Time.deltaTime, 0, sprintDuration);
-            }
-
-            // Handles sprint cooldown 
-            // When sprint remaining == 0 stops sprint ability until hitting cooldown
-            if(isSprintCooldown)
-            {
-                sprintCooldown -= 1 * Time.deltaTime;
-                if (sprintCooldown <= 0)
-                {
-                    isSprintCooldown = false;
-                }
-            }
-            else
-            {
-                sprintCooldown = sprintCooldownReset;
-            }
-
-            // Handles sprintBar 
-            if(useSprintBar && !unlimitedSprint)
-            {
-                float sprintRemainingPercent = sprintRemaining / sprintDuration;
-                sprintBar.transform.localScale = new Vector3(sprintRemainingPercent, 1f, 1f);
+                // Stamina drain is handled by StaminaManager
             }
         }
 
@@ -384,51 +352,34 @@ public class FirstPersonController : MonoBehaviour
                 isWalking = false;
             }
 
-            // All movement calculations shile sprint is active
+            // Sprint: controlled entirely by StaminaManager
             bool staminaAllows = StaminaManager.instance == null || StaminaManager.instance.canSprint;
-            if (enableSprint && Input.GetKey(sprintKey) && sprintRemaining > 0f && !isSprintCooldown && staminaAllows)
+            bool wantsSprint   = enableSprint && Input.GetKey(sprintKey) && staminaAllows;
+
+            if (wantsSprint)
             {
                 targetVelocity = transform.TransformDirection(targetVelocity) * sprintSpeed;
 
-                // Apply a force that attempts to reach our target velocity
                 Vector3 velocity = rb.linearVelocity;
                 Vector3 velocityChange = (targetVelocity - velocity);
                 velocityChange.x = Mathf.Clamp(velocityChange.x, -maxVelocityChange, maxVelocityChange);
                 velocityChange.z = Mathf.Clamp(velocityChange.z, -maxVelocityChange, maxVelocityChange);
                 velocityChange.y = 0;
 
-                // Player is only moving when valocity change != 0
-                // Makes sure fov change only happens during movement
                 if (velocityChange.x != 0 || velocityChange.z != 0)
                 {
                     isSprinting = true;
-
-                    if (isCrouched)
-                    {
-                        Crouch();
-                    }
-
-                    if (hideBarWhenFull && !unlimitedSprint)
-                    {
-                        sprintBarCG.alpha += 5 * Time.deltaTime;
-                    }
+                    if (isCrouched) Crouch();
                 }
 
                 rb.AddForce(velocityChange, ForceMode.VelocityChange);
             }
-            // All movement calculations while walking
             else
             {
                 isSprinting = false;
 
-                if (hideBarWhenFull && sprintRemaining == sprintDuration)
-                {
-                    sprintBarCG.alpha -= 3 * Time.deltaTime;
-                }
-
                 targetVelocity = transform.TransformDirection(targetVelocity) * walkSpeed;
 
-                // Apply a force that attempts to reach our target velocity
                 Vector3 velocity = rb.linearVelocity;
                 Vector3 velocityChange = (targetVelocity - velocity);
                 velocityChange.x = Mathf.Clamp(velocityChange.x, -maxVelocityChange, maxVelocityChange);
