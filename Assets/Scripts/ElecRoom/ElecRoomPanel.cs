@@ -120,7 +120,7 @@ public class ElecRoomPanel : MonoBehaviour
                 new DialogueLine
                 {
                     clip     = clip,
-                    subtitle = "Super, j'ai reactive le courant d'urgence !"
+                    subtitle = "Super, j'ai reactivé le courant d'urgence !"
                 }
             };
         }
@@ -301,6 +301,9 @@ public class ElecRoomPanel : MonoBehaviour
         // Le son joue uniquement quand TOUS les panneaux sont actives
         if (s_activatedCount >= s_totalPanels)
         {
+            foreach (FlickeringNeon neon in FindObjectsByType<FlickeringNeon>(FindObjectsSortMode.None))
+                neon.SwitchToEmergency();
+
             if (_dialogueCoroutine != null) StopCoroutine(_dialogueCoroutine);
             _dialogueCoroutine = StartCoroutine(PlaySpecificDialogue(powerRestoredDialogue));
         }

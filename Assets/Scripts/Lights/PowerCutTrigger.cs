@@ -53,7 +53,7 @@ public class PowerCutTrigger : MonoBehaviour
             AudioSource.PlayClipAtPoint(sonCoupure, transform.position, volume);
 
         foreach (FlickeringNeon neon in FindObjectsByType<FlickeringNeon>(FindObjectsSortMode.None))
-            neon.SwitchToSecurity();
+            neon.SwitchOff();
 
         foreach (SurveillanceCameraController cam in FindObjectsByType<SurveillanceCameraController>(FindObjectsSortMode.None))
             cam.CutPower();
